@@ -553,60 +553,12 @@
 // FIREBASE CONFIG — substitua pelos seus valores depois de criar o projeto
 // ============================================================
 const FIREBASE_CONFIG = {
-  apiKey:            "const firebaseConfig = {
   apiKey: "AIzaSyBXbwnfpPIC9qRLsXRDcIHyGe5DmptYGzM",
   authDomain: "luluzices-4254e.firebaseapp.com",
   projectId: "luluzices-4254e",
   storageBucket: "luluzices-4254e.firebasestorage.app",
   messagingSenderId: "328419813225",
   appId: "1:328419813225:web:6f168623f3edd148ee7ff8"
-};
-",
-  authDomain:        "const firebaseConfig = {
-  apiKey: "AIzaSyBXbwnfpPIC9qRLsXRDcIHyGe5DmptYGzM",
-  authDomain: "luluzices-4254e.firebaseapp.com",
-  projectId: "luluzices-4254e",
-  storageBucket: "luluzices-4254e.firebasestorage.app",
-  messagingSenderId: "328419813225",
-  appId: "1:328419813225:web:6f168623f3edd148ee7ff8"
-};
-",
-  projectId:         "const firebaseConfig = {
-  apiKey: "AIzaSyBXbwnfpPIC9qRLsXRDcIHyGe5DmptYGzM",
-  authDomain: "luluzices-4254e.firebaseapp.com",
-  projectId: "luluzices-4254e",
-  storageBucket: "luluzices-4254e.firebasestorage.app",
-  messagingSenderId: "328419813225",
-  appId: "1:328419813225:web:6f168623f3edd148ee7ff8"
-};
-",
-  storageBucket:     "const firebaseConfig = {
-  apiKey: "AIzaSyBXbwnfpPIC9qRLsXRDcIHyGe5DmptYGzM",
-  authDomain: "luluzices-4254e.firebaseapp.com",
-  projectId: "luluzices-4254e",
-  storageBucket: "luluzices-4254e.firebasestorage.app",
-  messagingSenderId: "328419813225",
-  appId: "1:328419813225:web:6f168623f3edd148ee7ff8"
-};
-",
-  messagingSenderId: "const firebaseConfig = {
-  apiKey: "AIzaSyBXbwnfpPIC9qRLsXRDcIHyGe5DmptYGzM",
-  authDomain: "luluzices-4254e.firebaseapp.com",
-  projectId: "luluzices-4254e",
-  storageBucket: "luluzices-4254e.firebasestorage.app",
-  messagingSenderId: "328419813225",
-  appId: "1:328419813225:web:6f168623f3edd148ee7ff8"
-};
-",
-  appId:             "const firebaseConfig = {
-  apiKey: "AIzaSyBXbwnfpPIC9qRLsXRDcIHyGe5DmptYGzM",
-  authDomain: "luluzices-4254e.firebaseapp.com",
-  projectId: "luluzices-4254e",
-  storageBucket: "luluzices-4254e.firebasestorage.app",
-  messagingSenderId: "328419813225",
-  appId: "1:328419813225:web:6f168623f3edd148ee7ff8"
-};
-",
 };
 
 // ============================================================
@@ -631,15 +583,7 @@ let vendas = LS.get('vendas', []);
 let fluxo  = LS.get('fluxo',  []);
 let metas  = LS.get('metas',  {});
 
-const firebaseConfigured = FIREBASE_CONFIG.apiKey !== "const firebaseConfig = {
-  apiKey: "AIzaSyBXbwnfpPIC9qRLsXRDcIHyGe5DmptYGzM",
-  authDomain: "luluzices-4254e.firebaseapp.com",
-  projectId: "luluzices-4254e",
-  storageBucket: "luluzices-4254e.firebasestorage.app",
-  messagingSenderId: "328419813225",
-  appId: "1:328419813225:web:6f168623f3edd148ee7ff8"
-};
-";
+const firebaseConfigured = FIREBASE_CONFIG.apiKey !== COLE_AQUI
 let db = null;
 
 function saveLocal() {
