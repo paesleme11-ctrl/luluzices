@@ -238,7 +238,16 @@
 </style>
 </head>
 <body>
-
+<div id="loginOverlay" style="position:fixed;inset:0;background:var(--cream);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.3s">
+  <div style="text-align:center;background:#fff;padding:40px;border-radius:24px;box-shadow:var(--shadow-lg);width:90%;max-width:360px;border:1px solid var(--border)">
+    <h1 style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--rose);margin-bottom:4px">Luluzices</h1>
+    <p style="font-size:13px;color:var(--ink-muted);margin-bottom:24px">Acesso restrito à gestão</p>
+    
+    <input type="password" id="passInput" placeholder="Digite a senha..." style="width:100%;margin-bottom:16px;text-align:center;font-size:16px;padding:12px;border-radius:12px">
+    
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;font-size:15px;border-radius:12px" onclick="checkLogin()">Entrar</button>
+  </div>
+</div>
 <aside class="sidebar">
   <div class="logo">
     <div class="logo-title">Luluzices</div>
@@ -1574,7 +1583,42 @@ async function init() {
   renderDashboard();
 }
 
-init();
+// ============================================================
+// CONTROLE DE ACESSO (LOGIN)
+// ============================================================
+const SENHA_ACESSO = "lulu2026"; // Mude aqui para a senha que você quiser!
+
+function checkLogin() {
+  const input = document.getElementById('passInput').value;
+  if (input === SENHA_ACESSO) {
+    LS.set('logado', true); // Salva no navegador para não pedir toda hora
+    liberarAcesso();
+  } else {
+    showToast('Senha incorreta 🔒', 'error');
+    document.getElementById('passInput').value = '';
+    document.getElementById('passInput').focus();
+  }
+}
+
+function liberarAcesso() {
+  const overlay = document.getElementById('loginOverlay');
+  overlay.style.opacity = '0';
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    // Só agora o sistema inicializa e busca os dados no Firebase
+    init(); 
+  }, 300);
+}
+
+// Quando a página carrega, verifica se já estava logado
+if (LS.get('logado', false)) {
+  liberarAcesso();
+} else {
+  // Permite dar 'Enter' para logar
+  document.getElementById('passInput').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') checkLogin();
+  });
+}
 </script>
 </body>
 </html>
