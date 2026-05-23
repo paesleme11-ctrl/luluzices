@@ -1636,6 +1636,16 @@ function liberarAcesso() {
     overlay.style.display = 'none';
     // Só agora o sistema inicializa e busca os dados no Firebase
     init(); 
+    // --- Lógica para fechar o menu no mobile ---
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    // Verifica se a tela é pequena (mobile)
+    if (window.innerWidth <= 768) {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar.classList.remove('active');
+    }
+  });
+});
   }, 300);
 }
 
