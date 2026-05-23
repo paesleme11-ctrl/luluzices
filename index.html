@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Luluzices — Gestão</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
 <style>
   :root {
     --rose: #e8546a; --rose-light: #f9dde1; --rose-dark: #c23650;
@@ -86,14 +91,6 @@
   tr:hover td { background:var(--cream); }
 
   .status-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; padding:3px 8px; border-radius:20px; white-space:nowrap; }
-  .status-finalizado { background:var(--green-light); color:var(--green); }
-  .status-enviado { background:var(--blue-light); color:var(--blue); }
-  .status-aguardando { background:var(--amber-light); color:var(--amber); }
-  .status-pg-pendente { background:#fdeaea; color:var(--red); }
-  .status-producao { background:#f0e8fd; color:#7c3aed; }
-  .status-cancelado { background:#f1f1f1; color:#888; }
-  .status-aguardando-info { background:#e0f4ff; color:#0284c7; }
-
   .fonte-badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:4px; }
   .fonte-trafego { background:#e8f0fd; color:#3b6cc9; }
   .fonte-organico { background:var(--green-light); color:var(--green); }
@@ -274,14 +271,14 @@
     </div>
   </div>
 
-  <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
     <div class="kpi-grid" id="kpiGrid"></div>
-    <div class="grid-3">
+
+    <div class="grid-3" style="margin-bottom:20px">
       <div class="card">
-        <div class="card-header"><span class="card-title">Receita por Dia</span></div>
-        <div class="card-body">
-          <div class="bar-chart-wrap" id="barChart"></div>
+        <div class="card-header"><span class="card-title">Receita Acumulada vs Meta</span></div>
+        <div class="card-body" style="height:200px;position:relative">
+          <canvas id="chartAcumulado"></canvas>
         </div>
       </div>
       <div class="card">
@@ -303,16 +300,28 @@
         </div>
       </div>
     </div>
-    <div class="grid-2">
+
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:20px;margin-bottom:20px">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Faturamento por Dia</span></div>
+        <div class="card-body" style="height:200px;position:relative">
+          <canvas id="chartDia"></canvas>
+        </div>
+      </div>
       <div class="card">
         <div class="card-header"><span class="card-title">Origem dos Leads</span></div>
-        <div class="card-body" id="origemChart"></div>
+        <div class="card-body" style="height:200px;position:relative;display:flex;align-items:center;justify-content:center">
+          <canvas id="chartOrigem"></canvas>
+        </div>
       </div>
       <div class="card">
         <div class="card-header"><span class="card-title">Top Produtos</span></div>
-        <div class="card-body" id="produtosChart"></div>
+        <div class="card-body" style="height:200px;position:relative">
+          <canvas id="chartProdutos"></canvas>
+        </div>
       </div>
     </div>
+
     <div class="card">
       <div class="card-header">
         <span class="card-title">Últimas Vendas</span>
@@ -327,7 +336,6 @@
     </div>
   </div>
 
-  <!-- VENDAS -->
   <div class="page" id="page-vendas">
     <div class="search-bar">
       <input class="search-input" type="text" id="searchVendas" placeholder="🔍  Buscar por contato, produto, fonte..." oninput="renderVendas()">
@@ -356,7 +364,6 @@
     </div>
   </div>
 
-  <!-- TAREFAS DO DIA -->
   <div class="page" id="page-tarefas">
     <div class="tarefas-header">
       <div>
@@ -371,7 +378,6 @@
     <div id="tarefasList"></div>
   </div>
 
-  <!-- FLUXO DE CAIXA -->
   <div class="page" id="page-fluxo">
     <div class="saldo-boxes" id="saldoBoxes"></div>
     <div class="grid-2">
@@ -421,7 +427,6 @@
     </div>
   </div>
 
-  <!-- METAS -->
   <div class="page" id="page-metas">
     <div class="grid-2">
       <div class="card">
@@ -457,7 +462,6 @@
   </div>
 </main>
 
-<!-- MODAL VENDA -->
 <div class="modal-overlay" id="modalVenda">
   <div class="modal">
     <div class="modal-header">
@@ -540,19 +544,21 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- LOADING OVERLAY -->
 <div id="loadingOverlay" style="position:fixed;inset:0;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px">
   <div style="font-family:'DM Serif Display',serif;font-size:28px;color:#fff">Luluzices</div>
   <div style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.2);border-top-color:var(--rose);border-radius:50%;animation:spin 0.8s linear infinite"></div>
   <p id="loadingMsg" style="color:rgba(255,255,255,0.6);font-size:14px">Carregando...</p>
+  <button id="btnSkip" onclick="hideLoading()" style="display:none;margin-top:8px;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);padding:8px 20px;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">
+    Entrar sem Firebase →
+  </button>
 </div>
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 
-<script type="module">
+<script>
 // ============================================================
-// FIREBASE CONFIG — substitua pelos seus valores depois de criar o projeto
+// FIREBASE CONFIG 
 // ============================================================
-const FIREBASE_CONFIG = {
+const firebaseConfig = {
   apiKey: "AIzaSyBXbwnfpPIC9qRLsXRDcIHyGe5DmptYGzM",
   authDomain: "luluzices-4254e.firebaseapp.com",
   projectId: "luluzices-4254e",
@@ -560,16 +566,6 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "328419813225",
   appId: "1:328419813225:web:6f168623f3edd148ee7ff8"
 };
-
-// ============================================================
-// IMPORTS FIREBASE
-// ============================================================
-import { initializeApp }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import {
-  getFirestore, doc, getDoc, setDoc, deleteDoc,
-  collection, getDocs, onSnapshot
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ============================================================
 // DATA LAYER
@@ -583,7 +579,7 @@ let vendas = LS.get('vendas', []);
 let fluxo  = LS.get('fluxo',  []);
 let metas  = LS.get('metas',  {});
 
-const firebaseConfigured = FIREBASE_CONFIG.apiKey !== COLE_AQUI
+const firebaseConfigured = true;
 let db = null;
 
 function saveLocal() {
@@ -596,43 +592,43 @@ function save() { saveLocal(); }
 
 async function saveVendaRemote(v) {
   if (!db) return;
-  try { await setDoc(doc(db,'vendas',v.id), v); } catch(e) { console.warn('Firebase write error:',e); }
+  try { await db.collection('vendas').doc(v.id).set(v); } catch(e) { console.warn('Firebase write error:',e); }
 }
 
 async function deleteVendaRemote(id) {
   if (!db) return;
-  try { await deleteDoc(doc(db,'vendas',id)); } catch(e) {}
+  try { await db.collection('vendas').doc(id).delete(); } catch(e) {}
 }
 
 async function saveFluxoRemote() {
   if (!db) return;
-  try { await setDoc(doc(db,'config','fluxo'),{data:JSON.stringify(fluxo)}); } catch(e) {}
+  try { await db.collection('config').doc('fluxo').set({data:JSON.stringify(fluxo)}); } catch(e) {}
 }
 
 async function saveMetasRemote() {
   if (!db) return;
-  try { await setDoc(doc(db,'config','metas'),{data:JSON.stringify(metas)}); } catch(e) {}
+  try { await db.collection('config').doc('metas').set({data:JSON.stringify(metas)}); } catch(e) {}
 }
 
 async function loadFromFirebase() {
   if (!firebaseConfigured) return;
   try {
-    const app = initializeApp(FIREBASE_CONFIG);
-    db = getFirestore(app);
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
     setStatus('Conectando ao Firebase...');
 
     const [vendasSnap, fluxoSnap, metasSnap] = await Promise.all([
-      getDocs(collection(db,'vendas')),
-      getDoc(doc(db,'config','fluxo')),
-      getDoc(doc(db,'config','metas')),
+      db.collection('vendas').get(),
+      db.collection('config').doc('fluxo').get(),
+      db.collection('config').doc('metas').get(),
     ]);
 
     if (!vendasSnap.empty) { vendas = vendasSnap.docs.map(d=>d.data()); LS.set('vendas',vendas); }
-    if (fluxoSnap.exists()) { fluxo = JSON.parse(fluxoSnap.data().data||'[]'); LS.set('fluxo',fluxo); }
-    if (metasSnap.exists()) { metas = JSON.parse(metasSnap.data().data||'{}'); LS.set('metas',metas); }
+    if (fluxoSnap.exists) { fluxo = JSON.parse(fluxoSnap.data().data||'[]'); LS.set('fluxo',fluxo); }
+    if (metasSnap.exists) { metas = JSON.parse(metasSnap.data().data||'{}'); LS.set('metas',metas); }
 
     // Listener tempo real — sync entre dispositivos
-    onSnapshot(collection(db,'vendas'), snap => {
+    db.collection('vendas').onSnapshot(snap => {
       snap.docChanges().forEach(ch => {
         if (ch.type==='added'||ch.type==='modified') {
           const idx = vendas.findIndex(v=>v.id===ch.doc.id);
@@ -661,6 +657,16 @@ function hideLoading() {
   const el=document.getElementById('loadingOverlay');
   if(el) el.style.display='none';
 }
+
+// Mostra botão de skip após 5s caso Firebase trave
+setTimeout(() => {
+  const skip = document.getElementById('btnSkip');
+  const overlay = document.getElementById('loadingOverlay');
+  if (skip && overlay && overlay.style.display !== 'none') {
+    skip.style.display = 'block';
+    document.getElementById('loadingMsg').textContent = 'Conectando ao Firebase...';
+  }
+}, 5000);
 
 
 // ============================================================
@@ -713,17 +719,39 @@ function getVendasMes(mesKey) {
   return vendas.filter(v => v.data && v.data.startsWith(mesKey));
 }
 
-// Faturamento = vendas finalizadas (valorPago) + enviadas (sinal já pago)
+// Faturamento = tudo que já entrou no caixa:
+// valorPago dos finalizados + sinal dos demais (aguardando, enviado, produção, pg-pendente, ag-info)
 function getFaturamento(lista) {
   return lista
-    .filter(v => v.status === 'finalizado')
-    .reduce((s, v) => s + (parseFloat(v.valorPago) || 0), 0);
+    .filter(v => v.status !== 'cancelado')
+    .reduce((s, v) => {
+      if (v.status === 'finalizado') {
+        return s + (parseFloat(v.valorPago) || 0);
+      } else {
+        // pedidos em aberto: só o sinal já foi pago
+        return s + (parseFloat(v.sinal) || 0);
+      }
+    }, 0);
+}
+
+// Total de pedidos ativos (excluindo cancelados)
+function getTotalPedidos(lista) {
+  return lista.filter(v => v.status !== 'cancelado').length;
 }
 
 function showToast(msg, type='') {
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = 'toast show ' + type;
   setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// Instâncias dos gráficos (para destruir antes de recriar)
+let _charts = {};
+function mkChart(id, config) {
+  if (_charts[id]) { _charts[id].destroy(); }
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  _charts[id] = new Chart(canvas.getContext('2d'), config);
 }
 
 // ============================================================
@@ -737,22 +765,24 @@ function renderDashboard() {
   const meta = getMeta();
   const vm = getVendasMes(mesKey);
   const fatTotal = getFaturamento(vm);
+  const totalPedidos = getTotalPedidos(vm);
   const vconcluidas = vm.filter(v => v.status === 'finalizado').length;
   const marketing = parseFloat(meta.marketing) || 0;
-  const ticket = vconcluidas > 0 ? fatTotal / vconcluidas : 0;
+  const ticket = totalPedidos > 0 ? fatTotal / totalPedidos : 0;
   const roi = marketing > 0 ? (fatTotal / marketing).toFixed(2) : '∞';
-  const cac = vconcluidas > 0 && marketing > 0 ? (marketing / vconcluidas).toFixed(2) : 0;
-  const pendentes = vm.filter(v => v.status !== 'finalizado' && v.status !== 'cancelado')
-    .reduce((s, v) => s + ((parseFloat(v.valorProd)||0) - (parseFloat(v.sinal)||0)), 0);
+  const cac = totalPedidos > 0 && marketing > 0 ? (marketing / totalPedidos).toFixed(2) : 0;
+  const aReceber = vm.filter(v => v.status !== 'finalizado' && v.status !== 'cancelado')
+    .reduce((s, v) => s + Math.max((parseFloat(v.valorProd)||0) - (parseFloat(v.sinal)||0), 0), 0);
 
   const diasMes = parseInt(meta.dias) || 31;
   const diaAtual = new Date().getDate();
   const mediaAtual = diaAtual > 0 ? fatTotal / diaAtual : 0;
   const projecao = mediaAtual * diasMes;
-  const mediaNec = Math.max(diasMes - diaAtual, 1) > 0 ? (meta.receita - fatTotal) / Math.max(diasMes - diaAtual, 1) : 0;
+  const mediaNec = (meta.receita - fatTotal) / Math.max(diasMes - diaAtual, 1);
   const pctMeta = Math.min((fatTotal / (meta.receita||1)) * 100, 100);
   const pctDias = Math.min((diaAtual / diasMes) * 100, 100);
 
+  // KPIs
   document.getElementById('kpiGrid').innerHTML = `
     <div class="kpi-card" style="--kpi-color:var(--rose)">
       <div class="kpi-label">Faturamento Mês</div>
@@ -760,9 +790,9 @@ function renderDashboard() {
       <div class="kpi-sub">Meta: ${BRL(meta.receita)} &nbsp;<span class="kpi-badge ${pctMeta>=100?'badge-up':pctMeta>=70?'badge-neutral':'badge-down'}">${pctMeta.toFixed(1)}%</span></div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--green)">
-      <div class="kpi-label">Vendas Finalizadas</div>
-      <div class="kpi-value">${vconcluidas}</div>
-      <div class="kpi-sub">Meta: ${meta.vendas} &nbsp;<span class="kpi-badge ${vconcluidas>=meta.vendas?'badge-up':'badge-neutral'}">${((vconcluidas/(meta.vendas||1))*100).toFixed(0)}%</span></div>
+      <div class="kpi-label">Total de Pedidos</div>
+      <div class="kpi-value">${totalPedidos}</div>
+      <div class="kpi-sub">${vconcluidas} finalizados &nbsp;|&nbsp; Meta: ${meta.vendas} <span class="kpi-badge ${totalPedidos>=meta.vendas?'badge-up':'badge-neutral'}">${((totalPedidos/(meta.vendas||1))*100).toFixed(0)}%</span></div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--amber)">
       <div class="kpi-label">Ticket Médio</div>
@@ -771,79 +801,114 @@ function renderDashboard() {
     </div>
     <div class="kpi-card" style="--kpi-color:var(--blue)">
       <div class="kpi-label">A Receber</div>
-      <div class="kpi-value">${BRL(pendentes)}</div>
+      <div class="kpi-value">${BRL(aReceber)}</div>
       <div class="kpi-sub">${vm.filter(v=>v.status!=='finalizado'&&v.status!=='cancelado').length} pedido(s) em aberto</div>
     </div>`;
 
+  // Projeção
   document.getElementById('projecaoVal').textContent = BRL(projecao);
-  document.getElementById('projecaoSub').textContent = `Média/dia atual: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}`;
+  document.getElementById('projecaoSub').textContent = `Média/dia: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}`;
   document.getElementById('metaPct').textContent = pctMeta.toFixed(1) + '%';
   document.getElementById('metaBar').style.width = pctMeta + '%';
   document.getElementById('diasPct').textContent = pctDias.toFixed(1) + '%';
   document.getElementById('diasBar').style.width = pctDias + '%';
 
-  // BAR CHART — receita por dia (apenas finalizadas)
+  // ── GRÁFICO 1: Receita Acumulada vs Meta ──────────────────
   const byDay = {};
-  vm.filter(v => v.status === 'finalizado').forEach(v => {
+  vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.data) return;
-    byDay[v.data] = (byDay[v.data] || 0) + (parseFloat(v.valorPago) || 0);
+    const val = v.status === 'finalizado'
+      ? (parseFloat(v.valorPago)||0)
+      : (parseFloat(v.sinal)||0);
+    byDay[v.data] = (byDay[v.data]||0) + val;
   });
-  const days = Object.keys(byDay).sort();
-  const maxVal = Math.max(...Object.values(byDay), 1);
+  const days = Array.from({length: diasMes}, (_,i) => {
+    const d = String(i+1).padStart(2,'0');
+    return `${ano}-${String(mes+1).padStart(2,'0')}-${d}`;
+  });
+  const metaDiaria = (meta.receita||0) / diasMes;
+  let acum = 0;
+  const acumData = days.map(d => { acum += (byDay[d]||0); return acum; });
+  const metaData = days.map((_,i) => Math.round(metaDiaria * (i+1) * 100)/100);
+
+  mkChart('chartAcumulado', {
+    type: 'line',
+    data: {
+      labels: days.map(d => d.split('-')[2]),
+      datasets: [
+        { label:'Realizado', data: acumData, borderColor:'#e8546a', backgroundColor:'rgba(232,84,106,0.08)', borderWidth:2, pointRadius:2, tension:0.3, fill:true },
+        { label:'Meta', data: metaData, borderColor:'#9a8890', borderWidth:1.5, borderDash:[5,4], pointRadius:0, tension:0.3 },
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}} }, scales:{ x:{ticks:{font:{size:10},maxTicksLimit:10}}, y:{ticks:{font:{size:10},callback:v=>'R$'+v.toLocaleString('pt-BR')}} } }
+  });
+
+  // ── GRÁFICO 2: Faturamento por Dia (barras) ───────────────
+  const dayLabels = Object.keys(byDay).sort();
+  const dayValues = dayLabels.map(d => byDay[d]);
   const todayStr = today();
-  const chart = document.getElementById('barChart');
-  if (!days.length) {
-    chart.innerHTML = '<div style="color:var(--ink-muted);font-size:13px;width:100%;text-align:center;align-self:center">Nenhuma venda finalizada ainda</div>';
-  } else {
-    chart.innerHTML = days.map(d => {
-      const pct = Math.max((byDay[d] / maxVal) * 100, 3);
-      const dayNum = d.split('-')[2];
-      return `<div class="bar-col">
-        <div class="bar-fill ${d===todayStr?'today':''}" style="height:${pct}%" title="${d}: ${BRL(byDay[d])}">
-          <span class="tooltip">${dayNum}/05: ${BRL(byDay[d])}</span>
-        </div>
-        <div class="bar-label">${dayNum}</div>
-      </div>`;
-    }).join('');
-  }
+  const barColors = dayLabels.map(d => d === todayStr ? '#e8546a' : 'rgba(232,84,106,0.45)');
 
-  // Origem
-  const byOrigem = {};
-  vm.filter(v=>v.status==='finalizado').forEach(v => {
-    if (v.fonte) byOrigem[v.fonte] = (byOrigem[v.fonte]||0) + (parseFloat(v.valorPago)||0);
+  mkChart('chartDia', {
+    type: 'bar',
+    data: {
+      labels: dayLabels.map(d => d.split('-')[2] + '/' + d.split('-')[1]),
+      datasets: [{ label:'Faturamento', data: dayValues, backgroundColor: barColors, borderRadius:4 }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:10}}}, y:{ticks:{font:{size:10},callback:v=>'R$'+v}} } }
   });
-  const origemSorted = Object.entries(byOrigem).sort((a,b)=>b[1]-a[1]);
-  const maxO = Math.max(...origemSorted.map(o=>o[1]),1);
-  document.getElementById('origemChart').innerHTML = origemSorted.length
-    ? origemSorted.map(([k,v]) => `<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/maxO)*100}%"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
-    : '<div class="empty-state"><div class="icon">📊</div><p>Sem dados</p></div>';
 
-  // Produtos
+  // ── GRÁFICO 3: Origem (rosca) ─────────────────────────────
+  const byOrigem = {};
+  vm.filter(v => v.status !== 'cancelado').forEach(v => {
+    if (!v.fonte) return;
+    const val = v.status === 'finalizado' ? (parseFloat(v.valorPago)||0) : (parseFloat(v.sinal)||0);
+    byOrigem[v.fonte] = (byOrigem[v.fonte]||0) + val;
+  });
+  const origemKeys = Object.keys(byOrigem).sort((a,b) => byOrigem[b]-byOrigem[a]);
+  const origemColors = ['#e8546a','#3dab7a','#f0a030','#4a7fc1','#a855f7','#ec4899'];
+
+  mkChart('chartOrigem', {
+    type: 'doughnut',
+    data: {
+      labels: origemKeys,
+      datasets: [{ data: origemKeys.map(k=>byOrigem[k]), backgroundColor: origemColors, borderWidth:2, borderColor:'#fff' }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom',labels:{font:{size:10},boxWidth:10}} } }
+  });
+
+  // ── GRÁFICO 4: Top Produtos (barras horizontais) ──────────
   const byProd = {};
-  vm.filter(v=>v.status==='finalizado').forEach(v => {
+  vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.produto) return;
     v.produto.split(',').map(p=>p.trim()).filter(Boolean).forEach(p => { byProd[p]=(byProd[p]||0)+1; });
   });
-  const prodSorted = Object.entries(byProd).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const maxP = Math.max(...prodSorted.map(p=>p[1]),1);
-  document.getElementById('produtosChart').innerHTML = prodSorted.length
-    ? prodSorted.map(([k,v]) => `<div class="origem-bar"><div class="origem-name" style="font-size:11.5px">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/maxP)*100}%;background:var(--blue)"></div></div><div class="origem-val">${v}</div></div>`).join('')
-    : '<div class="empty-state"><div class="icon">🎨</div><p>Sem dados</p></div>';
+  const prodSorted = Object.entries(byProd).sort((a,b)=>b[1]-a[1]).slice(0,7);
 
-  // Recent
+  mkChart('chartProdutos', {
+    type: 'bar',
+    data: {
+      labels: prodSorted.map(([k])=>k.length>18?k.slice(0,16)+'…':k),
+      datasets: [{ label:'Pedidos', data: prodSorted.map(([,v])=>v), backgroundColor:'rgba(74,127,193,0.7)', borderRadius:4 }]
+    },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:10},stepSize:1}}, y:{ticks:{font:{size:10}}} } }
+  });
+
+  // Recent table
   const recent = [...vm].sort((a,b)=>(b.data||'')>(a.data||'')?1:-1).slice(0,8);
   document.querySelector('#recentTable tbody').innerHTML = recent.length
     ? recent.map(v => `<tr>
-        <td><span class="status-badge status-${v.status.replace(' ','-')}">${v.status}</span></td>
+        <td>${statusSelectHtml(v.id, v.status)}</td>
         <td style="font-weight:500">${v.contato||'—'}</td>
         <td style="color:var(--ink-muted)">${v.data||'—'}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.produto||'—'}</td>
-        <td><span class="fonte-badge fonte-${v.fonte==='tráfego pago'?'trafego':v.fonte==='orgânico'?'organico':v.fonte==='catálogo'?'catalogo':v.fonte==='indicação'?'indicacao':v.fonte||''}">${v.fonte||'—'}</span></td>
+        <td><span class="fonte-badge fonte-${fonteClass(v.fonte)}">${v.fonte||'—'}</span></td>
         <td style="font-weight:600">${BRL(v.valorProd)}</td>
         <td style="color:var(--green)">${BRL(v.valorPago)}</td>
       </tr>`).join('')
     : '<tr><td colspan="7" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma venda no mês</td></tr>';
 }
+
 
 // ============================================================
 // VENDAS
@@ -1047,19 +1112,19 @@ function renderFluxo() {
   const mesFluxo = fluxo.filter(f=>(f.data||'').startsWith(mesKey));
   const vendasFat = getVendasMes(mesKey).filter(v=>v.status==='finalizado').reduce((s,v)=>s+(parseFloat(v.valorPago)||0),0);
   const entradasManuais = mesFluxo.filter(f=>f.tipo==='entrada').reduce((s,f)=>s+f.valor,0);
-  const saidas = mesFluxo.filter(f=>f.tipo==='saida').reduce((s,f)=>s+f.valor,0);
+  const saídas = mesFluxo.filter(f=>f.tipo==='saida').reduce((s,f)=>s+f.valor,0);
   const entradas = vendasFat + entradasManuais;
-  const saldo = entradas - saidas;
+  const saldo = entradas - saídas;
 
   document.getElementById('saldoBoxes').innerHTML = `
     <div class="saldo-box entradas"><div class="val">${BRL(entradas)}</div><div class="lbl">Entradas</div></div>
-    <div class="saldo-box saidas"><div class="val">${BRL(saidas)}</div><div class="lbl">Saídas</div></div>
+    <div class="saldo-box saidas"><div class="val">${BRL(saídas)}</div><div class="lbl">Saídas</div></div>
     <div class="saldo-box saldo"><div class="val">${BRL(saldo)}</div><div class="lbl">Saldo</div></div>`;
 
   const byCat = {};
   mesFluxo.filter(f=>f.tipo==='saida').forEach(f=>{ byCat[f.categoria]=(byCat[f.categoria]||0)+f.valor; });
   document.getElementById('fluxoResumo').innerHTML = Object.entries(byCat).length
-    ? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/saidas)*100}%;background:var(--red)"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
+    ? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/saídas)*100}%;background:var(--red)"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
     : '<p style="font-size:13px;color:var(--ink-muted)">Sem saídas lançadas</p>';
 
   document.getElementById('fluxoBody').innerHTML = [...mesFluxo].sort((a,b)=>(b.data||'')>(a.data||'')?1:-1).map(f=>`
@@ -1189,210 +1254,209 @@ document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click
 // ============================================================
 // DADOS DE MAIO 2026
 // ============================================================
-const DADOS_MAIO=[
-  {s:'finalizado',c:'62 9664-8344',d:'2026-05-03',f:'recorrente',p:'lembrete/save',vp:20,si:10,vg:20},
-  {s:'finalizado',c:'32 9921-3479',d:'2026-05-01',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'87 8804-1467',d:'2026-05-02',f:'orgânico',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'21 96494-2470',d:'2026-05-01',f:'tráfego pago',p:'cinematográfico',vp:70,si:35,vg:70},
-  {s:'finalizado',c:'94 8135-3369',d:'2026-05-02',f:'tráfego pago',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'21 98181-3445',d:'2026-05-03',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'93 9161-2486',d:'2026-05-02',f:'recorrente',p:'lembrete/save',vp:20,si:20,vg:20},
-  {s:'finalizado',c:'31 9871-859',d:'2026-05-01',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'15 99830-8735',d:'2026-05-01',f:'recorrente',p:'filtro',vp:25,si:12.5,vg:25},
-  {s:'finalizado',c:'11 94364-4046',d:'2026-05-04',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'21 98541-5050',d:'2026-05-04',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'94 9179-8848',d:'2026-05-01',f:'orgânico',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'89 9463-2758',d:'2026-05-04',f:'catálogo',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'65 9341-8067',d:'2026-05-04',f:'catálogo',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'11 98328-1521',d:'2026-05-02',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'17 99158-1154',d:'2026-05-01',f:'tráfego pago',p:'interativo animado, personalização',vp:55,si:30,vg:55},
-  {s:'finalizado',c:'38 9910-6504',d:'2026-05-05',f:'recorrente',p:'lembrete/save',vp:20,si:20,vg:20},
-  {s:'finalizado',c:'18 99639-5100',d:'2026-05-05',f:'tráfego pago',p:'infinito',vp:50,si:50,vg:50},
-  {s:'finalizado',c:'11 95670-7807',d:'2026-05-03',f:'catálogo',p:'personalização, tradicional',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'81 9429-9906',d:'2026-05-05',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'85 8214-0567',d:'2026-05-05',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'61 8428-4616',d:'2026-05-05',f:'orgânico',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'31 9999-6850',d:'2026-05-05',f:'catálogo',p:'combo',vp:55,si:55,vg:55},
-  {s:'finalizado',c:'88 8190-6722',d:'2026-05-05',f:'catálogo',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'64 9985-7582',d:'2026-05-05',f:'catálogo',p:'combo',vp:60,si:30,vg:60},
-  {s:'finalizado',c:'41 9272-5025',d:'2026-05-05',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'65 9260-2006',d:'2026-05-05',f:'catálogo',p:'interativo tradicional',vp:30,si:30,vg:30},
-  {s:'finalizado',c:'77 9998-8532',d:'2026-05-05',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'61 9887-8571',d:'2026-05-06',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'19 99004-5957',d:'2026-05-06',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'11 96970-7914',d:'2026-05-06',f:'tráfego pago',p:'combo',vp:55,si:55,vg:55},
-  {s:'finalizado',c:'65 9998-6186',d:'2026-05-05',f:'tráfego pago',p:'artes',vp:30,si:30,vg:30},
-  {s:'finalizado',c:'34 9828-1066',d:'2026-05-06',f:'orgânico',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'84 9143-1485',d:'2026-05-06',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'11 98447-7527',d:'2026-05-07',f:'tráfego pago',p:'interativo animado, urgência',vp:50,si:50,vg:50},
-  {s:'finalizado',c:'91 8560-1989',d:'2026-05-05',f:'orgânico',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'82 9116-5820',d:'2026-05-06',f:'tráfego pago',p:'infinito',vp:50,si:50,vg:50},
-  {s:'finalizado',c:'89 9447-0574',d:'2026-05-07',f:'tráfego pago',p:'interativo animado, urgência',vp:55,si:30,vg:55},
-  {s:'finalizado',c:'62 8186-9066',d:'2026-05-06',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'21 96677-2736',d:'2026-05-06',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'83 8783-6339',d:'2026-05-02',f:'orgânico',p:'interativo tradicional, personalização, lembrete/save',vp:70,si:35,vg:70},
-  {s:'finalizado',c:'67 9965-2028',d:'2026-05-06',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'91 8491-7933',d:'2026-05-06',f:'tráfego pago',p:'cinematográfico',vp:70,si:35,vg:70},
-  {s:'finalizado',c:'88 8803-0780',d:'2026-05-06',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'16 99155-4887',d:'2026-05-06',f:'tráfego pago',p:'cinematográfico',vp:70,si:45,vg:70},
-  {s:'finalizado',c:'14 99764-9917',d:'2026-05-06',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'88 9836-6600',d:'2026-05-07',f:'tráfego pago',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'68 9214-9248',d:'2026-05-07',f:'tráfego pago',p:'cinematográfico',vp:70,si:70,vg:70},
-  {s:'finalizado',c:'88 8143-4063',d:'2026-05-07',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'31 9397-3083',d:'2026-05-06',f:'orgânico',p:'cinematográfico, forms',vp:85,si:35,vg:85},
-  {s:'finalizado',c:'19 99262-7821',d:'2026-05-07',f:'catálogo',p:'interativo animado, filtro',vp:65,si:20,vg:65},
-  {s:'finalizado',c:'98 8403-2986',d:'2026-05-07',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'31 9820-4617',d:'2026-05-07',f:'tráfego pago',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'92 9327-4942',d:'2026-05-07',f:'tráfego pago',p:'combo',vp:75,si:37.5,vg:75},
-  {s:'finalizado',c:'19 99965-3837',d:'2026-05-07',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'14 99658-6855',d:'2026-05-06',f:'catálogo',p:'cinematográfico, interativo animado',vp:110,si:110,vg:110},
-  {s:'finalizado',c:'98 8808-2728',d:'2026-05-07',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'22 99825-0358',d:'2026-05-01',f:'tráfego pago',p:'combo',vp:65,si:32.5,vg:65},
-  {s:'finalizado',c:'41 9527-9052',d:'2026-05-08',f:'tráfego pago',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'99 8469-5913',d:'2026-05-08',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'34 9654-7838',d:'2026-05-06',f:'orgânico',p:'interativo pra casamento',vp:60,si:30,vg:60},
-  {s:'finalizado',c:'71 8473-5285',d:'2026-05-08',f:'orgânico',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'22 99980-1308',d:'2026-05-08',f:'tráfego pago',p:'cinematográfico, mascotinho',vp:100,si:50,vg:100},
-  {s:'finalizado',c:'24 99930-1970',d:'2026-05-05',f:'tráfego pago',p:'filtro',vp:35,si:17.5,vg:35},
-  {s:'finalizado',c:'14 99141-6760',d:'2026-05-08',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'61 8595-5942',d:'2026-05-04',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'21 98177-1629',d:'2026-05-07',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'92 9969-7606',d:'2026-05-08',f:'catálogo',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'67 9941-5870',d:'2026-05-07',f:'orgânico',p:'interativo animado, personalização',vp:60,si:30,vg:60},
-  {s:'finalizado',c:'45 9824-1770',d:'2026-05-10',f:'orgânico',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'51 8107-0827',d:'2026-05-10',f:'tráfego pago',p:'cinematográfico',vp:70,si:35,vg:70},
-  {s:'finalizado',c:'38 9158-1598',d:'2026-05-04',f:'orgânico',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'75 9151-0672',d:'2026-05-11',f:'retorno',p:'interativo animado, urgência',vp:55,si:55,vg:55},
-  {s:'finalizado',c:'98 9991-2305',d:'2026-05-08',f:'retorno',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'31 9459-7351',d:'2026-05-06',f:'tráfego pago',p:'infinito',vp:50,si:35,vg:50},
-  {s:'finalizado',c:'12 98885-3601',d:'2026-05-11',f:'indicação',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'62 8142-2556',d:'2026-05-03',f:'tráfego pago',p:'combo',vp:150,si:75,vg:150},
-  {s:'finalizado',c:'61 9239-3065',d:'2026-05-11',f:'retorno',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'15 99759-4962',d:'2026-05-08',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'31 9209-5610',d:'2026-05-11',f:'retorno',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'11 95286-0390',d:'2026-05-11',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'15 99704-2444',d:'2026-05-11',f:'tráfego pago',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'81 8799-6876',d:'2026-05-11',f:'orgânico',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'86 9922-1150',d:'2026-05-11',f:'retorno',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'41 9966-2675',d:'2026-05-11',f:'retorno',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'98 8141-6934',d:'2026-05-11',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'17 98133-7729',d:'2026-05-11',f:'indicação',p:'interativo tradicional, personalização',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'19 98853-8165',d:'2026-05-06',f:'retorno',p:'infinito, personalização',vp:70,si:35,vg:70},
-  {s:'finalizado',c:'73 8179-8857',d:'2026-05-07',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'75 8174-6014',d:'2026-05-11',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'64 9260-9050',d:'2026-05-10',f:'catálogo',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'64 9260-9050',d:'2026-05-12',f:'recorrente',p:'filtro',vp:20,si:10,vg:20},
-  {s:'finalizado',c:'27 99985-9395',d:'2026-05-11',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'24 99229-7456',d:'2026-05-11',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'21 97581-4631',d:'2026-05-12',f:'recorrente',p:'lembrete/save',vp:20,si:20,vg:20},
-  {s:'finalizado',c:'62 8261-5193',d:'2026-05-12',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'27 99655-5391',d:'2026-05-10',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'82 9617-4709',d:'2026-05-08',f:'tráfego pago',p:'combo',vp:120,si:60,vg:120},
-  {s:'finalizado',c:'61 8109-8123',d:'2026-05-12',f:'retorno',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'85 9932-1637',d:'2026-05-12',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'33 9977-3062',d:'2026-05-12',f:'retorno',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'11 99951-0350',d:'2026-05-11',f:'tráfego pago',p:'infinito, casamento',vp:70,si:35,vg:70},
-  {s:'finalizado',c:'92 9108-5655',d:'2026-05-11',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'13 97425-0594',d:'2026-05-12',f:'orgânico',p:'realista',vp:60,si:60,vg:60},
-  {s:'finalizado',c:'11 96173-1544',d:'2026-05-12',f:'retorno',p:'combo',vp:75,si:37,vg:75},
-  {s:'finalizado',c:'34 9970-9522',d:'2026-05-11',f:'orgânico',p:'interativo pra casamento',vp:60,si:30,vg:60},
-  {s:'finalizado',c:'77 8169-4334',d:'2026-05-13',f:'tráfego pago',p:'interativo tradicional',vp:30,si:30,vg:30},
-  {s:'finalizado',c:'42 9824-7681',d:'2026-05-13',f:'orgânico',p:'combo',vp:100,si:50,vg:100},
-  {s:'finalizado',c:'54 9619-1960',d:'2026-05-12',f:'retorno',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'12 98120-0126',d:'2026-05-13',f:'orgânico',p:'combo',vp:60,si:30,vg:60},
-  {s:'finalizado',c:'24 99318-5908',d:'2026-05-13',f:'tráfego pago',p:'combo',vp:55,si:55,vg:55},
-  {s:'finalizado',c:'22 99866-5443',d:'2026-05-13',f:'tráfego pago',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'11 93039-0077',d:'2026-05-13',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'91 9135-1386',d:'2026-05-12',f:'retorno',p:'interativo animado, personalização',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'19 99355-3333',d:'2026-05-13',f:'retorno',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'47 9167-7799',d:'2026-05-14',f:'tráfego pago',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'17 99189-2954',d:'2026-05-15',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'83 9161-8531',d:'2026-05-12',f:'catálogo',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'67 9887-3213',d:'2026-05-11',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'62 9390-0545',d:'2026-05-15',f:'orgânico',p:'infinito, casamento, personalização',vp:90,si:45,vg:90},
-  {s:'finalizado',c:'11 95145-4496',d:'2026-05-13',f:'orgânico',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'63 9117-6252',d:'2026-05-15',f:'retorno',p:'interativo tradicional',vp:30,si:30,vg:30},
-  {s:'finalizado',c:'92 9555-0002',d:'2026-05-13',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'93 9158-8257',d:'2026-05-14',f:'tráfego pago',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'51 8104-0342',d:'2026-05-15',f:'tráfego pago',p:'combo',vp:65,si:65,vg:65},
-  {s:'finalizado',c:'92 8801-5873',d:'2026-05-14',f:'tráfego pago',p:'interativo animado, personalização',vp:55,si:27.5,vg:55},
-  {s:'finalizado',c:'51 8218-3781',d:'2026-05-14',f:'tráfego pago',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'27 99509-4855',d:'2026-05-15',f:'retorno',p:'combo',vp:90,si:90,vg:90},
-  {s:'finalizado',c:'88 8142-8225',d:'2026-05-14',f:'recorrente',p:'filtro',vp:25,si:15,vg:25},
-  {s:'finalizado',c:'33 9989-2814',d:'2026-05-14',f:'tráfego pago',p:'interativo tradicional',vp:30,si:30,vg:30},
-  {s:'finalizado',c:'83 8834-2663',d:'2026-05-13',f:'orgânico',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'83 8834-2663',d:'2026-05-14',f:'recorrente',p:'filtro',vp:20,si:20,vg:20},
-  {s:'finalizado',c:'41 9931-0294',d:'2026-05-15',f:'tráfego pago',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'11 98880-5973',d:'2026-05-15',f:'retorno',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'75 8107-5479',d:'2026-05-15',f:'tráfego pago',p:'interativo debutante',vp:60,si:30,vg:60},
-  {s:'aguardando',c:'87 9122-8763',d:'2026-05-15',f:'tráfego pago',p:'infinito',vp:50,si:25,vg:25},
-  {s:'finalizado',c:'86 9497-5060',d:'2026-05-16',f:'recorrente',p:'cinematográfico',vp:70,si:35,vg:70},
-  {s:'finalizado',c:'77 9198-5640',d:'2026-05-16',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'21 97715-6255',d:'2026-05-16',f:'orgânico',p:'filtro',vp:35,si:17.5,vg:35},
-  {s:'finalizado',c:'33 8417-8189',d:'2026-05-16',f:'orgânico',p:'filtro',vp:35,si:35,vg:35},
-  {s:'finalizado',c:'82 8229-0524',d:'2026-05-15',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'82 9840-7582',d:'2026-05-15',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'69 9993-9241',d:'2026-05-17',f:'catálogo',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'67 9862-5998',d:'2026-05-17',f:'retorno',p:'interativo animado, personalização',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'92 8526-4167',d:'2026-05-17',f:'orgânico',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'11 94311-6626',d:'2026-05-17',f:'retorno',p:'infinito',vp:50,si:50,vg:50},
-  {s:'finalizado',c:'55 9731-2777',d:'2026-05-16',f:'retorno',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'79 9997-0859',d:'2026-05-17',f:'recorrente',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'82 9975-8432',d:'2026-05-17',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'91 8304-2337',d:'2026-05-17',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'81 9246-1638',d:'2026-05-17',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'81 98697-6262',d:'2026-05-18',f:'retorno',p:'animado',vp:80,si:40,vg:80},
-  {s:'finalizado',c:'81 99671-6381',d:'2026-05-18',f:'orgânico',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'66 98111-2551',d:'2026-05-18',f:'orgânico',p:'interativo animado, personalização',vp:60,si:30,vg:60},
-  {s:'finalizado',c:'31 99192-4082',d:'2026-05-18',f:'retorno',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'43 99630-0136',d:'2026-05-18',f:'retorno',p:'infinito',vp:70,si:70,vg:70},
-  {s:'finalizado',c:'66 99689-1244',d:'2026-05-18',f:'catálogo',p:'interativo tradicional',vp:30,si:30,vg:30},
-  {s:'finalizado',c:'68 99954-7056',d:'2026-05-18',f:'orgânico',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'85 92002-5479',d:'2026-05-18',f:'orgânico',p:'infinito',vp:50,si:50,vg:50},
-  {s:'finalizado',c:'11 99451-5050',d:'2026-05-19',f:'orgânico',p:'interativo animado, forms',vp:55,si:55,vg:55},
-  {s:'finalizado',c:'41 9558-1803',d:'2026-05-19',f:'retorno',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'62 9148-3734',d:'2026-05-18',f:'retorno',p:'combo',vp:115,si:57.5,vg:115},
-  {s:'finalizado',c:'19 99438-4231',d:'2026-05-19',f:'catálogo',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'98 9191-6327',d:'2026-05-19',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'88 9356-0226',d:'2026-05-19',f:'orgânico',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'91 8450-3200',d:'2026-05-19',f:'orgânico',p:'infinito',vp:50,si:25,vg:50},
-  {s:'finalizado',c:'42 9965-3683',d:'2026-05-19',f:'retorno',p:'combo',vp:65,si:32.5,vg:65},
-  {s:'finalizado',c:'14 99801-4399',d:'2026-05-19',f:'recorrente',p:'lembrete/save',vp:20,si:20,vg:20},
-  {s:'aguardando',c:'61 9617-2723',d:'2026-05-20',f:'retorno',p:'interativo tradicional, personalização',vp:50,si:25,vg:25},
-  {s:'finalizado',c:'27 99756-1312',d:'2026-05-20',f:'catálogo',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'66 9659-0117',d:'2026-05-20',f:'retorno',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'54 9910-7812',d:'2026-05-20',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'17 98159-6293',d:'2026-05-20',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:30},
-  {s:'finalizado',c:'31 8978-0128',d:'2026-05-20',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'98 8416-8793',d:'2026-05-20',f:'orgânico',p:'combo',vp:65,si:65,vg:65},
-  {s:'finalizado',c:'62 8579-8989',d:'2026-05-20',f:'retorno',p:'interativo tradicional',vp:30,si:30,vg:30},
-  {s:'aguardando',c:'99 9189-0588',d:'2026-05-20',f:'tráfego pago',p:'infinito',vp:50,si:25,vg:25},
-  {s:'finalizado',c:'37 9803-8516',d:'2026-05-20',f:'orgânico',p:'interativo tradicional',vp:35,si:17.5,vg:35},
-  {s:'aguardando',c:'81 8175-6595',d:'2026-05-20',f:'catálogo',p:'combo',vp:120,si:120,vg:120},
-  {s:'finalizado',c:'88 9915-5186',d:'2026-05-20',f:'catálogo',p:'infinito',vp:50,si:25,vg:50},
-  {s:'enviado',c:'11 91328-1231',d:'2026-05-20',f:'retorno',p:'combo',vp:120,si:60,vg:60},
-  {s:'finalizado',c:'82 8755-5005',d:'2026-05-20',f:'catálogo',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'aguardando',c:'11 96759-5284',d:'2026-05-20',f:'retorno',p:'interativo animado',vp:40,si:20,vg:20},
-  {s:'aguardando',c:'77 9848-9717',d:'2026-05-21',f:'retorno',p:'cinematográfico',vp:70,si:35,vg:35},
-  {s:'aguardando',c:'62 8226-3919',d:'2026-05-21',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:20},
-  {s:'aguardando',c:'41 9976-7161',d:'2026-05-21',f:'retorno',p:'interativo animado',vp:40,si:20,vg:20},
-  {s:'aguardando',c:'41 9508-4205',d:'2026-05-21',f:'retorno',p:'cinematográfico',vp:70,si:35,vg:35},
-  {s:'aguardando',c:'62 9448-3145',d:'2026-05-21',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:20},
-  {s:'aguardando',c:'24 98135-3751',d:'2026-05-21',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:20},
-  {s:'aguardando',c:'61 9802-8685',d:'2026-05-21',f:'tráfego pago',p:'interativo tradicional',vp:30,si:15,vg:15},
-  {s:'aguardando',c:'87 8806-6143',d:'2026-05-21',f:'retorno',p:'interativo animado',vp:40,si:20,vg:20},
-  {s:'aguardando-info',c:'21 96742-7154',d:'2026-05-21',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:20},
-  {s:'aguardando',c:'81 9592-1786',d:'2026-05-21',f:'tráfego pago',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'79 9946-0336',d:'2026-05-03',f:'orgânico',p:'cinematográfico',vp:70,si:35,vg:70},
-  {s:'finalizado',c:'83 8638-2657',d:'2026-05-01',f:'recorrente',p:'interativo tradicional',vp:30,si:30,vg:30},
-  {s:'finalizado',c:'15 98814-5216',d:'2026-05-01',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'37 9857-0355',d:'2026-05-02',f:'orgânico',p:'combo',vp:90,si:90,vg:90},
-  {s:'finalizado',c:'11 94477-9717',d:'2026-05-01',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
-  {s:'finalizado',c:'94 9268-3988',d:'2026-05-02',f:'orgânico',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'21 98029-3282',d:'2026-05-03',f:'tráfego pago',p:'interativo animado',vp:40,si:40,vg:40},
-  {s:'finalizado',c:'11 94738-9110',d:'2026-05-03',f:'tráfego pago',p:'interativo animado',vp:40,si:20,vg:40},
+const DADOS_MAIO = [
+  {id:"maio_0",status:"finalizado",contato:"62 9664-8344",data:"2026-05-03",fonte:"recorrente",produto:"lembrete/save",valorProd:20.0,sinal:10.0,valorPago:20.0,obs:""},
+  {id:"maio_1",status:"finalizado",contato:"32 9921-3479",data:"2026-05-01",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_2",status:"finalizado",contato:"87 8804-1467",data:"2026-05-02",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_3",status:"finalizado",contato:"21 96494-2470",data:"2026-05-01",fonte:"tráfego pago",produto:"cinematográfico",valorProd:70.0,sinal:35.0,valorPago:70.0,obs:""},
+  {id:"maio_4",status:"finalizado",contato:"94 8135-3369",data:"2026-05-02",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_5",status:"finalizado",contato:"21 98181-3445",data:"2026-05-03",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_6",status:"finalizado",contato:"93 9161-2486",data:"2026-05-02",fonte:"recorrente",produto:"lembrete/save",valorProd:20.0,sinal:20.0,valorPago:20.0,obs:""},
+  {id:"maio_7",status:"finalizado",contato:"31 9871-859",data:"2026-05-01",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_8",status:"finalizado",contato:"15 99830-8735",data:"2026-05-01",fonte:"recorrente",produto:"filtro",valorProd:25.0,sinal:12.5,valorPago:25.0,obs:""},
+  {id:"maio_9",status:"finalizado",contato:"11 94364-4046",data:"2026-05-04",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_10",status:"finalizado",contato:"21 98541-5050",data:"2026-05-04",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_11",status:"finalizado",contato:"94 9179-8848",data:"2026-05-01",fonte:"orgânico",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_12",status:"finalizado",contato:"89 9463-2758",data:"2026-05-04",fonte:"catálogo",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_13",status:"finalizado",contato:"65 9341-8067",data:"2026-05-04",fonte:"catálogo",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_14",status:"finalizado",contato:"11 98328-1521",data:"2026-05-02",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_15",status:"finalizado",contato:"17 99158-1154",data:"2026-05-01",fonte:"tráfego pago",produto:"interativo animado, personalização",valorProd:55.0,sinal:30.0,valorPago:55.0,obs:""},
+  {id:"maio_16",status:"finalizado",contato:"38 9910-6504",data:"2026-05-05",fonte:"recorrente",produto:"lembrete/save",valorProd:20.0,sinal:20.0,valorPago:20.0,obs:""},
+  {id:"maio_17",status:"finalizado",contato:"18 99639-5100",data:"2026-05-05",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:50.0,valorPago:50.0,obs:""},
+  {id:"maio_18",status:"finalizado",contato:"11 95670-7807",data:"2026-05-03",fonte:"catálogo",produto:"personalização, tradicional",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_19",status:"finalizado",contato:"81 9429-9906",data:"2026-05-05",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_20",status:"finalizado",contato:"85 8214-0567",data:"2026-05-05",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_21",status:"finalizado",contato:"61 8428-4616",data:"2026-05-05",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_22",status:"finalizado",contato:"31 9999-6850",data:"2026-05-05",fonte:"catálogo",produto:"combo",valorProd:55.0,sinal:55.0,valorPago:55.0,obs:""},
+  {id:"maio_23",status:"finalizado",contato:"88 8190-6722",data:"2026-05-05",fonte:"catálogo",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_24",status:"finalizado",contato:"64 9985-7582",data:"2026-05-05",fonte:"catálogo",produto:"combo",valorProd:60.0,sinal:30.0,valorPago:60.0,obs:""},
+  {id:"maio_25",status:"finalizado",contato:"41 9272-5025",data:"2026-05-05",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_26",status:"finalizado",contato:"65 9260-2006",data:"2026-05-05",fonte:"catálogo",produto:"interativo tradicional",valorProd:30.0,sinal:30.0,valorPago:30.0,obs:""},
+  {id:"maio_27",status:"finalizado",contato:"77 9998-8532",data:"2026-05-05",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_28",status:"finalizado",contato:"61 9887-8571",data:"2026-05-06",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_29",status:"finalizado",contato:"19 99004-5957",data:"2026-05-06",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_30",status:"finalizado",contato:"11 96970-7914",data:"2026-05-06",fonte:"tráfego pago",produto:"combo",valorProd:55.0,sinal:55.0,valorPago:55.0,obs:""},
+  {id:"maio_31",status:"finalizado",contato:"65 9998-6186",data:"2026-05-05",fonte:"tráfego pago",produto:"artes",valorProd:30.0,sinal:30.0,valorPago:30.0,obs:""},
+  {id:"maio_32",status:"finalizado",contato:"34 9828-1066",data:"2026-05-06",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_33",status:"finalizado",contato:"84 9143-1485",data:"2026-05-06",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_34",status:"finalizado",contato:"11 98447-7527",data:"2026-05-07",fonte:"tráfego pago",produto:"interativo animado, urgência",valorProd:50.0,sinal:50.0,valorPago:50.0,obs:""},
+  {id:"maio_35",status:"finalizado",contato:"91 8560-1989",data:"2026-05-05",fonte:"orgânico",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_36",status:"finalizado",contato:"82 9116-5820",data:"2026-05-06",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:50.0,valorPago:50.0,obs:""},
+  {id:"maio_37",status:"finalizado",contato:"89 9447-0574",data:"2026-05-07",fonte:"tráfego pago",produto:"interativo animado, urgência",valorProd:55.0,sinal:30.0,valorPago:55.0,obs:""},
+  {id:"maio_38",status:"finalizado",contato:"62 8186-9066",data:"2026-05-06",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_39",status:"finalizado",contato:"21 96677-2736",data:"2026-05-06",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_40",status:"finalizado",contato:"83 8783-6339",data:"2026-05-02",fonte:"orgânico",produto:"interativo tradicional, personalização, lembrete/save",valorProd:70.0,sinal:35.0,valorPago:70.0,obs:""},
+  {id:"maio_41",status:"finalizado",contato:"67 9965-2028",data:"2026-05-06",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_42",status:"finalizado",contato:"91 8491-7933",data:"2026-05-06",fonte:"tráfego pago",produto:"cinematográfico",valorProd:70.0,sinal:35.0,valorPago:70.0,obs:""},
+  {id:"maio_43",status:"finalizado",contato:"88 8803-0780",data:"2026-05-06",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_44",status:"finalizado",contato:"16 99155-4887",data:"2026-05-06",fonte:"tráfego pago",produto:"cinematográfico",valorProd:70.0,sinal:45.0,valorPago:70.0,obs:""},
+  {id:"maio_45",status:"finalizado",contato:"14 99764-9917",data:"2026-05-06",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_46",status:"finalizado",contato:"88 9836-6600",data:"2026-05-07",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_47",status:"finalizado",contato:"68 9214-9248",data:"2026-05-07",fonte:"tráfego pago",produto:"cinematográfico",valorProd:70.0,sinal:70.0,valorPago:70.0,obs:""},
+  {id:"maio_48",status:"finalizado",contato:"88 8143-4063",data:"2026-05-07",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_49",status:"finalizado",contato:"31 9397-3083",data:"2026-05-06",fonte:"orgânico",produto:"cinematográfico, forms",valorProd:85.0,sinal:35.0,valorPago:85.0,obs:""},
+  {id:"maio_50",status:"finalizado",contato:"19 99262-7821",data:"2026-05-07",fonte:"catálogo",produto:"interativo animado, filtro",valorProd:65.0,sinal:20.0,valorPago:65.0,obs:""},
+  {id:"maio_51",status:"finalizado",contato:"98 8403-2986",data:"2026-05-07",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_52",status:"finalizado",contato:"31 9820-4617",data:"2026-05-07",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_53",status:"finalizado",contato:"92 9327-4942",data:"2026-05-07",fonte:"tráfego pago",produto:"combo",valorProd:75.0,sinal:37.5,valorPago:75.0,obs:""},
+  {id:"maio_54",status:"finalizado",contato:"19 99965-3837",data:"2026-05-07",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_55",status:"finalizado",contato:"14 99658-6855",data:"2026-05-06",fonte:"catálogo",produto:"cinematográfico, interativo animado",valorProd:110.0,sinal:110.0,valorPago:110.0,obs:""},
+  {id:"maio_56",status:"finalizado",contato:"98 8808-2728",data:"2026-05-07",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_57",status:"finalizado",contato:"22 99825-0358",data:"2026-05-01",fonte:"tráfego pago",produto:"combo",valorProd:65.0,sinal:32.5,valorPago:65.0,obs:""},
+  {id:"maio_58",status:"finalizado",contato:"41 9527-9052",data:"2026-05-08",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_59",status:"finalizado",contato:"99 8469-5913",data:"2026-05-08",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_60",status:"finalizado",contato:"34 9654-7838",data:"2026-05-06",fonte:"orgânico",produto:"interativo pra casamento",valorProd:60.0,sinal:30.0,valorPago:60.0,obs:""},
+  {id:"maio_61",status:"finalizado",contato:"71 8473-5285",data:"2026-05-08",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_62",status:"finalizado",contato:"22 99980-1308",data:"2026-05-08",fonte:"tráfego pago",produto:"cinematográfico, mascotinho",valorProd:100.0,sinal:50.0,valorPago:100.0,obs:""},
+  {id:"maio_63",status:"finalizado",contato:"24 99930-1970",data:"2026-05-05",fonte:"tráfego pago",produto:"filtro",valorProd:35.0,sinal:17.5,valorPago:35.0,obs:""},
+  {id:"maio_64",status:"finalizado",contato:"14 99141-6760",data:"2026-05-08",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_65",status:"finalizado",contato:"61 8595-5942",data:"2026-05-04",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_66",status:"finalizado",contato:"21 98177-1629",data:"2026-05-07",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_67",status:"finalizado",contato:"92 9969-7606",data:"2026-05-08",fonte:"catálogo",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_68",status:"finalizado",contato:"67 9941-5870",data:"2026-05-07",fonte:"orgânico",produto:"interativo animado, personalização",valorProd:60.0,sinal:30.0,valorPago:60.0,obs:""},
+  {id:"maio_69",status:"finalizado",contato:"45 9824-1770",data:"2026-05-10",fonte:"orgânico",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_70",status:"finalizado",contato:"51 8107-0827",data:"2026-05-10",fonte:"tráfego pago",produto:"cinematográfico",valorProd:70.0,sinal:35.0,valorPago:70.0,obs:""},
+  {id:"maio_71",status:"finalizado",contato:"38 9158-1598",data:"2026-05-04",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_72",status:"finalizado",contato:"75 9151-0672",data:"2026-05-11",fonte:"retorno",produto:"interativo animado, urgência",valorProd:55.0,sinal:55.0,valorPago:55.0,obs:""},
+  {id:"maio_73",status:"finalizado",contato:"98 9991-2305",data:"2026-05-08",fonte:"retorno",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_74",status:"finalizado",contato:"31 9459-7351",data:"2026-05-06",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:35.0,valorPago:50.0,obs:""},
+  {id:"maio_75",status:"finalizado",contato:"12 98885-3601",data:"2026-05-11",fonte:"indicação",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_76",status:"finalizado",contato:"62 8142-2556",data:"2026-05-03",fonte:"tráfego pago",produto:"combo",valorProd:150.0,sinal:75.0,valorPago:150.0,obs:""},
+  {id:"maio_77",status:"finalizado",contato:"61 9239-3065",data:"2026-05-11",fonte:"retorno",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_78",status:"finalizado",contato:"15 99759-4962",data:"2026-05-08",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_79",status:"finalizado",contato:"31 9209-5610",data:"2026-05-11",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_80",status:"finalizado",contato:"11 95286-0390",data:"2026-05-11",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_81",status:"finalizado",contato:"15 99704-2444",data:"2026-05-11",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_82",status:"finalizado",contato:"81 8799-6876",data:"2026-05-11",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_83",status:"finalizado",contato:"86 9922-1150",data:"2026-05-11",fonte:"retorno",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_84",status:"finalizado",contato:"41 9966-2675",data:"2026-05-11",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_85",status:"finalizado",contato:"98 8141-6934",data:"2026-05-11",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_86",status:"finalizado",contato:"17 98133-7729",data:"2026-05-11",fonte:"indicação",produto:"interativo tradicional, personalização",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_87",status:"finalizado",contato:"19 98853-8165",data:"2026-05-06",fonte:"retorno",produto:"infinito, personalização",valorProd:70.0,sinal:35.0,valorPago:70.0,obs:""},
+  {id:"maio_88",status:"finalizado",contato:"73 8179-8857",data:"2026-05-07",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_89",status:"finalizado",contato:"75 8174-6014",data:"2026-05-11",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_90",status:"finalizado",contato:"64 9260-9050",data:"2026-05-10",fonte:"catálogo",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_91",status:"finalizado",contato:"64 9260-9050",data:"2026-05-12",fonte:"recorrente",produto:"filtro",valorProd:20.0,sinal:10.0,valorPago:20.0,obs:""},
+  {id:"maio_92",status:"finalizado",contato:"27 99985-9395",data:"2026-05-11",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_93",status:"finalizado",contato:"24 99229-7456",data:"2026-05-11",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_94",status:"finalizado",contato:"21 97581-4631",data:"2026-05-12",fonte:"recorrente",produto:"lembrete/save",valorProd:20.0,sinal:20.0,valorPago:20.0,obs:""},
+  {id:"maio_95",status:"finalizado",contato:"62 8261-5193",data:"2026-05-12",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_96",status:"finalizado",contato:"27 99655-5391",data:"2026-05-10",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_97",status:"finalizado",contato:"82 9617-4709",data:"2026-05-08",fonte:"tráfego pago",produto:"combo",valorProd:120.0,sinal:60.0,valorPago:120.0,obs:""},
+  {id:"maio_98",status:"finalizado",contato:"61 8109-8123",data:"2026-05-12",fonte:"retorno",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_99",status:"finalizado",contato:"85 9932-1637",data:"2026-05-12",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_100",status:"finalizado",contato:"33 9977-3062",data:"2026-05-12",fonte:"retorno",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_101",status:"finalizado",contato:"11 99951-0350",data:"2026-05-11",fonte:"tráfego pago",produto:"infinito, casamento",valorProd:70.0,sinal:35.0,valorPago:70.0,obs:""},
+  {id:"maio_102",status:"finalizado",contato:"92 9108-5655",data:"2026-05-11",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_103",status:"finalizado",contato:"13 97425-0594",data:"2026-05-12",fonte:"orgânico",produto:"realista",valorProd:60.0,sinal:60.0,valorPago:60.0,obs:""},
+  {id:"maio_104",status:"finalizado",contato:"11 96173-1544",data:"2026-05-12",fonte:"retorno",produto:"combo",valorProd:75.0,sinal:37.0,valorPago:75.0,obs:""},
+  {id:"maio_105",status:"finalizado",contato:"34 9970-9522",data:"2026-05-11",fonte:"orgânico",produto:"interativo pra casamento",valorProd:60.0,sinal:30.0,valorPago:60.0,obs:""},
+  {id:"maio_106",status:"finalizado",contato:"77 8169-4334",data:"2026-05-13",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:30.0,valorPago:30.0,obs:""},
+  {id:"maio_107",status:"finalizado",contato:"42 9824-7681",data:"2026-05-13",fonte:"orgânico",produto:"combo",valorProd:100.0,sinal:50.0,valorPago:100.0,obs:""},
+  {id:"maio_108",status:"finalizado",contato:"54 9619-1960",data:"2026-05-12",fonte:"retorno",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_109",status:"finalizado",contato:"12 98120-0126",data:"2026-05-13",fonte:"orgânico",produto:"combo",valorProd:60.0,sinal:30.0,valorPago:60.0,obs:""},
+  {id:"maio_110",status:"finalizado",contato:"24 99318-5908",data:"2026-05-13",fonte:"tráfego pago",produto:"combo",valorProd:55.0,sinal:55.0,valorPago:55.0,obs:""},
+  {id:"maio_111",status:"finalizado",contato:"22 99866-5443",data:"2026-05-13",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_112",status:"finalizado",contato:"11 93039-0077",data:"2026-05-13",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_113",status:"finalizado",contato:"91 9135-1386",data:"2026-05-12",fonte:"retorno",produto:"interativo animado, personalização",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_114",status:"finalizado",contato:"19 99355-3333",data:"2026-05-13",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_115",status:"finalizado",contato:"47 9167-7799",data:"2026-05-14",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_116",status:"finalizado",contato:"17 99189-2954",data:"2026-05-15",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_117",status:"finalizado",contato:"83 9161-8531",data:"2026-05-12",fonte:"catálogo",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_118",status:"finalizado",contato:"67 9887-3213",data:"2026-05-11",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_119",status:"finalizado",contato:"62 9390-0545",data:"2026-05-15",fonte:"orgânico",produto:"infinito, casamento, personalização",valorProd:90.0,sinal:45.0,valorPago:90.0,obs:""},
+  {id:"maio_120",status:"finalizado",contato:"11 95145-4496",data:"2026-05-13",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_121",status:"finalizado",contato:"63 9117-6252",data:"2026-05-15",fonte:"retorno",produto:"interativo tradicional",valorProd:30.0,sinal:30.0,valorPago:30.0,obs:""},
+  {id:"maio_122",status:"finalizado",contato:"92 9555-0002",data:"2026-05-13",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_123",status:"finalizado",contato:"93 9158-8257",data:"2026-05-14",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_124",status:"finalizado",contato:"51 8104-0342",data:"2026-05-15",fonte:"tráfego pago",produto:"combo",valorProd:65.0,sinal:65.0,valorPago:65.0,obs:""},
+  {id:"maio_125",status:"finalizado",contato:"92 8801-5873",data:"2026-05-14",fonte:"tráfego pago",produto:"interativo animado, personalização",valorProd:55.0,sinal:27.5,valorPago:55.0,obs:""},
+  {id:"maio_126",status:"finalizado",contato:"51 8218-3781",data:"2026-05-14",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_127",status:"finalizado",contato:"27 99509-4855",data:"2026-05-15",fonte:"retorno",produto:"combo",valorProd:90.0,sinal:90.0,valorPago:90.0,obs:""},
+  {id:"maio_128",status:"finalizado",contato:"88 8142-8225",data:"2026-05-14",fonte:"recorrente",produto:"filtro",valorProd:25.0,sinal:15.0,valorPago:25.0,obs:""},
+  {id:"maio_129",status:"finalizado",contato:"33 9989-2814",data:"2026-05-14",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:30.0,valorPago:30.0,obs:""},
+  {id:"maio_130",status:"finalizado",contato:"83 8834-2663",data:"2026-05-13",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_131",status:"finalizado",contato:"83 8834-2663",data:"2026-05-14",fonte:"recorrente",produto:"filtro",valorProd:20.0,sinal:20.0,valorPago:20.0,obs:""},
+  {id:"maio_132",status:"finalizado",contato:"41 9931-0294",data:"2026-05-15",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_133",status:"finalizado",contato:"11 98880-5973",data:"2026-05-15",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_134",status:"finalizado",contato:"75 8107-5479",data:"2026-05-15",fonte:"tráfego pago",produto:"interativo debutante",valorProd:60.0,sinal:30.0,valorPago:60.0,obs:""},
+  {id:"maio_135",status:"pg-pendente",contato:"87 9122-8763",data:"2026-05-15",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:25.0,obs:""},
+  {id:"maio_136",status:"finalizado",contato:"86 9497-5060",data:"2026-05-16",fonte:"recorrente",produto:"cinematográfico",valorProd:70.0,sinal:35.0,valorPago:70.0,obs:""},
+  {id:"maio_137",status:"finalizado",contato:"77 9198-5640",data:"2026-05-16",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_138",status:"finalizado",contato:"21 97715-6255",data:"2026-05-16",fonte:"orgânico",produto:"filtro",valorProd:35.0,sinal:17.5,valorPago:35.0,obs:""},
+  {id:"maio_139",status:"finalizado",contato:"33 8417-8189",data:"2026-05-16",fonte:"orgânico",produto:"filtro",valorProd:35.0,sinal:35.0,valorPago:35.0,obs:""},
+  {id:"maio_140",status:"finalizado",contato:"82 8229-0524",data:"2026-05-15",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_141",status:"finalizado",contato:"82 9840-7582",data:"2026-05-15",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_142",status:"finalizado",contato:"69 9993-9241",data:"2026-05-17",fonte:"catálogo",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_143",status:"finalizado",contato:"67 9862-5998",data:"2026-05-17",fonte:"retorno",produto:"interativo animado, personalização",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_144",status:"finalizado",contato:"92 8526-4167",data:"2026-05-17",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_145",status:"finalizado",contato:"11 94311-6626",data:"2026-05-17",fonte:"retorno",produto:"infinito",valorProd:50.0,sinal:50.0,valorPago:50.0,obs:""},
+  {id:"maio_146",status:"finalizado",contato:"55 9731-2777",data:"2026-05-16",fonte:"retorno",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_147",status:"finalizado",contato:"79 9997-0859",data:"2026-05-17",fonte:"recorrente",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_148",status:"finalizado",contato:"82 9975-8432",data:"2026-05-17",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_149",status:"finalizado",contato:"91 8304-2337",data:"2026-05-17",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_150",status:"finalizado",contato:"81 9246-1638",data:"2026-05-17",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_151",status:"finalizado",contato:"81 98697 6262",data:"2026-05-18",fonte:"retorno",produto:"animado",valorProd:80.0,sinal:40.0,valorPago:80.0,obs:""},
+  {id:"maio_152",status:"finalizado",contato:"81 99671 6381",data:"2026-05-18",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_153",status:"finalizado",contato:"66 98111 2551",data:"2026-05-18",fonte:"orgânico",produto:"interativo animado, personalização",valorProd:60.0,sinal:30.0,valorPago:60.0,obs:""},
+  {id:"maio_154",status:"finalizado",contato:"31 99192 4082",data:"2026-05-18",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_155",status:"finalizado",contato:"43 99630 0136",data:"2026-05-18",fonte:"retorno",produto:"infinito",valorProd:70.0,sinal:70.0,valorPago:70.0,obs:""},
+  {id:"maio_156",status:"finalizado",contato:"66 99689 1244",data:"2026-05-18",fonte:"catálogo",produto:"interativo tradicional",valorProd:30.0,sinal:30.0,valorPago:30.0,obs:""},
+  {id:"maio_157",status:"finalizado",contato:"68 99954 7056",data:"2026-05-18",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_158",status:"finalizado",contato:"85 92002 5479",data:"2026-05-18",fonte:"orgânico",produto:"infinito",valorProd:50.0,sinal:50.0,valorPago:50.0,obs:""},
+  {id:"maio_159",status:"finalizado",contato:"11 99451-5050",data:"2026-05-19",fonte:"orgânico",produto:"interativo animado, forms",valorProd:55.0,sinal:55.0,valorPago:55.0,obs:""},
+  {id:"maio_160",status:"finalizado",contato:"41 9558-1803",data:"2026-05-19",fonte:"retorno",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_161",status:"finalizado",contato:"62 9148-3734",data:"2026-05-18",fonte:"retorno",produto:"combo",valorProd:115.0,sinal:57.5,valorPago:115.0,obs:""},
+  {id:"maio_162",status:"finalizado",contato:"19 99438-4231",data:"2026-05-19",fonte:"catálogo",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_163",status:"finalizado",contato:"98 9191-6327",data:"2026-05-19",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_164",status:"finalizado",contato:"88 9356-0226",data:"2026-05-19",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_165",status:"finalizado",contato:"91 8450-3200",data:"2026-05-19",fonte:"orgânico",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_166",status:"finalizado",contato:"42 9965-3683",data:"2026-05-19",fonte:"retorno",produto:"combo",valorProd:65.0,sinal:32.5,valorPago:65.0,obs:""},
+  {id:"maio_167",status:"finalizado",contato:"14 99801-4399",data:"2026-05-19",fonte:"recorrente",produto:"lembrete/save",valorProd:20.0,sinal:20.0,valorPago:20.0,obs:""},
+  {id:"maio_168",status:"aguardando",contato:"61 9617-2723",data:"2026-05-20",fonte:"retorno",produto:"interativo tradicional, personalização",valorProd:50.0,sinal:25.0,valorPago:25.0,obs:""},
+  {id:"maio_169",status:"finalizado",contato:"27 99756-1312",data:"2026-05-20",fonte:"catálogo",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_170",status:"finalizado",contato:"66 9659-0117",data:"2026-05-20",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_171",status:"finalizado",contato:"54 9910-7812",data:"2026-05-20",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_172",status:"finalizado",contato:"17 98159-6293",data:"2026-05-20",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:30.0,obs:""},
+  {id:"maio_173",status:"finalizado",contato:"31 8978-0128",data:"2026-05-20",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_174",status:"finalizado",contato:"98 8416-8793",data:"2026-05-20",fonte:"orgânico",produto:"combo",valorProd:65.0,sinal:65.0,valorPago:65.0,obs:""},
+  {id:"maio_175",status:"finalizado",contato:"62 8579-8989",data:"2026-05-20",fonte:"retorno",produto:"interativo tradicional",valorProd:30.0,sinal:30.0,valorPago:30.0,obs:""},
+  {id:"maio_176",status:"finalizado",contato:"99 9189-0588",data:"2026-05-20",fonte:"tráfego pago",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_177",status:"finalizado",contato:"37 9803-8516",data:"2026-05-20",fonte:"orgânico",produto:"interativo tradicional",valorProd:35.0,sinal:17.5,valorPago:35.0,obs:""},
+  {id:"maio_178",status:"finalizado",contato:"81 8175-6595",data:"2026-05-20",fonte:"catálogo",produto:"combo",valorProd:120.0,sinal:120.0,valorPago:120.0,obs:""},
+  {id:"maio_179",status:"finalizado",contato:"88 9915-5186",data:"2026-05-20",fonte:"catálogo",produto:"infinito",valorProd:50.0,sinal:25.0,valorPago:50.0,obs:""},
+  {id:"maio_180",status:"enviado",contato:"11 91328-1231",data:"2026-05-20",fonte:"retorno",produto:"combo",valorProd:120.0,sinal:60.0,valorPago:60.0,obs:""},
+  {id:"maio_181",status:"finalizado",contato:"82 8755-5005",data:"2026-05-20",fonte:"catálogo",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_182",status:"pg-pendente",contato:"11 96759-5284",data:"2026-05-20",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:20.0,obs:""},
+  {id:"maio_183",status:"enviado",contato:"77 9848-9717",data:"2026-05-21",fonte:"retorno",produto:"cinematográfico",valorProd:70.0,sinal:35.0,valorPago:35.0,obs:""},
+  {id:"maio_184",status:"finalizado",contato:"62 8226-3919",data:"2026-05-21",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_185",status:"finalizado",contato:"41 9976-7161",data:"2026-05-21",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_186",status:"enviado",contato:"41 9508-4205",data:"2026-05-21",fonte:"retorno",produto:"cinematográfico",valorProd:70.0,sinal:35.0,valorPago:35.0,obs:""},
+  {id:"maio_187",status:"finalizado",contato:"62 9448-3145",data:"2026-05-21",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_188",status:"enviado",contato:"24 98135-3751",data:"2026-05-21",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:20.0,obs:""},
+  {id:"maio_189",status:"enviado",contato:"61 9802-8685",data:"2026-05-21",fonte:"tráfego pago",produto:"interativo tradicional",valorProd:30.0,sinal:15.0,valorPago:15.0,obs:""},
+  {id:"maio_190",status:"enviado",contato:"87 8806-6143",data:"2026-05-21",fonte:"retorno",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:20.0,obs:""},
+  {id:"maio_191",status:"aguardando-info",contato:"21 96742-7154",data:"2026-05-21",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:20.0,obs:""},
+  {id:"maio_192",status:"enviado",contato:"81 9592-1786",data:"2026-05-21",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_267",status:"finalizado",contato:"79 9946-0336",data:"2026-05-03",fonte:"orgânico",produto:"cinematográfico",valorProd:70.0,sinal:35.0,valorPago:70.0,obs:""},
+  {id:"maio_268",status:"finalizado",contato:"83 8638-2657",data:"nan",fonte:"recorrente",produto:"interativo tradicional",valorProd:30.0,sinal:30.0,valorPago:30.0,obs:""},
+  {id:"maio_269",status:"finalizado",contato:"15 98814-5216",data:"2026-05-01",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_270",status:"finalizado",contato:"37 9857-0355",data:"2026-05-02",fonte:"orgânico",produto:"combo",valorProd:90.0,sinal:90.0,valorPago:90.0,obs:""},
+  {id:"maio_271",status:"finalizado",contato:"11 94477-9717",data:"2026-05-01",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
+  {id:"maio_272",status:"finalizado",contato:"94 9268-3988",data:"2026-05-02",fonte:"orgânico",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_273",status:"finalizado",contato:"21 98029-3282",data:"2026-05-03",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:40.0,valorPago:40.0,obs:""},
+  {id:"maio_274",status:"finalizado",contato:"11 94738-9110",data:"2026-05-03",fonte:"tráfego pago",produto:"interativo animado",valorProd:40.0,sinal:20.0,valorPago:40.0,obs:""},
 ];
-
 // ============================================================
 // TAREFAS DO DIA
 // ============================================================
@@ -1485,9 +1549,10 @@ async function init() {
   if (!LS.get('maioImportado', false)) {
     const temMaio = vendas.some(v => v.data && v.data.startsWith('2026-05'));
     if (!temMaio) {
-      const novos = DADOS_MAIO.map((r,i) => ({
-        id:'maio_'+i, status:r.s, contato:r.c, data:r.d, fonte:r.f,
-        produto:r.p, valorProd:r.vp, sinal:r.si, valorPago:r.vg, obs:'',
+      const novos = DADOS_MAIO.map(r => ({
+        id: r.id, status: r.status, contato: r.contato, data: r.data,
+        fonte: r.fonte, produto: r.produto, valorProd: r.valorProd,
+        sinal: r.sinal, valorPago: r.valorPago, obs: r.obs || '',
       }));
       vendas = [...novos, ...vendas];
     }
