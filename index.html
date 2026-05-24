@@ -12,15 +12,9 @@
 
 <style>
   @media (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    left: -230px; /* Esconde o menu */
-    transition: 0.3s;
-  }
-  .sidebar.active {
-    left: 0; /* Mostra o menu */
-  }
-  .main { margin-left: 0; } /* Ajusta o conteúdo */
+  .sidebar { position: fixed; left: -230px; transition: 0.3s; }
+  .sidebar.active { left: 0; }
+  .main { margin-left: 0; }
 }
   :root {
     --rose: #e8546a; --rose-light: #f9dde1; --rose-dark: #c23650;
@@ -323,9 +317,14 @@
         <div class="card-header"><span class="card-title">Projeção do Mês</span></div>
         <div class="card-body">
           <div class="projecao-box">
-            <div class="projecao-label">Projeção Atual</div>
+            <div class="projecao-label">Faturamento Projetado</div>
             <div class="projecao-value" id="projecaoVal">—</div>
             <div class="projecao-sub" id="projecaoSub">—</div>
+            
+            <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.2);">
+                <div class="projecao-label">Lucro Líquido Projetado (Mês)</div>
+                <div class="projecao-value" id="lucroProjVal" style="font-size:26px; margin-top:2px;">—</div>
+            </div>
           </div>
           <div class="progress-wrap" style="margin-top:16px">
             <div class="progress-label"><span>Meta Mensal</span><span id="metaPct">0%</span></div>
@@ -376,7 +375,7 @@
 
   <div class="page" id="page-vendas">
     <div class="search-bar">
-      <input type="month" id="filterDataVendas" onchange="renderVendas()" style="padding:9px; border:1.5px solid var(--border); border-radius:var(--radius-sm); outline:none; font-family:'DM Sans',sans-serif; color:var(--ink-light);">
+      <input type="date" id="filterDataVendas" onchange="renderVendas()" style="padding:9px; border:1.5px solid var(--border); border-radius:var(--radius-sm); outline:none; font-family:'DM Sans',sans-serif; color:var(--ink-light);">
       
       <input class="search-input" type="text" id="searchVendas" placeholder="🔍  Buscar por contato, produto, fonte..." oninput="renderVendas()">
       <button class="btn btn-primary" onclick="openModalVenda()">+ Nova Venda</button>
@@ -408,7 +407,7 @@
     <div class="tarefas-header">
       <div>
         <h2>⚠️ Tarefas do Dia</h2>
-        <p>Pedidos aguardando que precisam de atenção — datados até ontem</p>
+        <p>Pedidos aguardando e contas agendadas que precisam de atenção</p>
       </div>
       <div style="text-align:center">
         <div class="tarefas-count" id="tarefasCount">0</div>
@@ -430,20 +429,24 @@
             </div>
             <div class="form-group"><label>Data</label><input type="date" id="fluxoData"></div>
           </div>
-          <div class="form-row">
-            <div class="form-group"><label>Descrição</label><input type="text" id="fluxoDesc" placeholder="Ex: Meta Ads"></div>
-          </div>
           <div class="form-row cols-2">
-            <div class="form-group"><label>Valor (R$)</label><input type="number" id="fluxoVal" placeholder="0,00" step="0.01" min="0"></div>
+            <div class="form-group"><label>Status</label>
+              <select id="fluxoStatus"><option value="pago">✅ Efetuado / Pago</option><option value="agendado">⏳ Agendado p/ Futuro</option></select>
+            </div>
             <div class="form-group"><label>Categoria</label>
               <select id="fluxoCateg">
                 <option value="marketing">📣 Marketing</option>
                 <option value="ferramenta">🔧 Ferramenta</option>
                 <option value="saque">💸 Saque</option>
                 <option value="taxa">🏦 Taxa</option>
+                <option value="repasse">🔄 Repasses / Prolabore</option>
                 <option value="outros">📦 Outros</option>
               </select>
             </div>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-group"><label>Descrição</label><input type="text" id="fluxoDesc" placeholder="Ex: Meta Ads"></div>
+            <div class="form-group"><label>Valor (R$)</label><input type="number" id="fluxoVal" placeholder="0,00" step="0.01" min="0"></div>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px" onclick="addFluxo()">Lançar</button>
         </div>
@@ -453,6 +456,14 @@
         <div class="card-body" id="fluxoResumo"></div>
       </div>
     </div>
+    
+    <div class="card" style="margin-bottom:20px;">
+        <div class="card-header"><span class="card-title">Distribuição Ideal de Repasses (Faturamento Mensal)</span></div>
+        <div class="card-body" style="height:260px;position:relative;display:flex;align-items:center;justify-content:center">
+          <canvas id="chartRepasses"></canvas>
+        </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <span class="card-title">Extrato</span>
@@ -460,7 +471,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Valor</th><th></th></tr></thead>
+          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Status</th><th>Valor</th><th></th></tr></thead>
           <tbody id="fluxoBody"></tbody>
         </table>
       </div>
@@ -671,7 +682,6 @@ async function loadFromFirebase() {
     if (fluxoSnap.exists) { fluxo = JSON.parse(fluxoSnap.data().data||'[]'); LS.set('fluxo',fluxo); }
     if (metasSnap.exists) { metas = JSON.parse(metasSnap.data().data||'{}'); LS.set('metas',metas); }
 
-    // Listener tempo real — sync entre dispositivos
     db.collection('vendas').onSnapshot(snap => {
       snap.docChanges().forEach(ch => {
         if (ch.type==='added'||ch.type==='modified') {
@@ -687,7 +697,7 @@ async function loadFromFirebase() {
 
     setStatus(''); hideLoading();
   } catch(e) {
-    console.warn('Firebase falhou, usando cache local:', e);
+    console.warn('Firebase falhou:', e);
     setStatus('⚠️ Offline — dados locais'); hideLoading();
   }
 }
@@ -702,7 +712,6 @@ function hideLoading() {
   if(el) el.style.display='none';
 }
 
-// Mostra botão de skip após 5s caso Firebase trave
 setTimeout(() => {
   const skip = document.getElementById('btnSkip');
   const overlay = document.getElementById('loadingOverlay');
@@ -763,8 +772,6 @@ function getVendasMes(mesKey) {
   return vendas.filter(v => v.data && v.data.startsWith(mesKey));
 }
 
-// Faturamento = tudo que já entrou no caixa:
-// valorPago dos finalizados + sinal dos demais (aguardando, enviado, produção, pg-pendente, ag-info)
 function getFaturamento(lista) {
   return lista
     .filter(v => v.status !== 'cancelado')
@@ -772,13 +779,11 @@ function getFaturamento(lista) {
       if (v.status === 'finalizado') {
         return s + (parseFloat(v.valorPago) || 0);
       } else {
-        // pedidos em aberto: só o sinal já foi pago
         return s + (parseFloat(v.sinal) || 0);
       }
     }, 0);
 }
 
-// Total de pedidos ativos (excluindo cancelados)
 function getTotalPedidos(lista) {
   return lista.filter(v => v.status !== 'cancelado').length;
 }
@@ -789,7 +794,6 @@ function showToast(msg, type='') {
   setTimeout(() => t.classList.remove('show'), 2800);
 }
 
-// Instâncias dos gráficos (para destruir antes de recriar)
 let _charts = {};
 function mkChart(id, config) {
   if (_charts[id]) { _charts[id].destroy(); }
@@ -799,7 +803,7 @@ function mkChart(id, config) {
 }
 
 // ============================================================
-// DASHBOARD
+// DASHBOARD & LUCRO PROJETADO
 // ============================================================
 function renderDashboard() {
   const { mes, ano } = getMesAno();
@@ -826,6 +830,12 @@ function renderDashboard() {
   const pctMeta = Math.min((fatTotal / (meta.receita||1)) * 100, 100);
   const pctDias = Math.min((diaAtual / diasMes) * 100, 100);
 
+  // NOVO: Cálculo de Despesas Fixas e Lucro Projetado
+  const mesFluxo = fluxo.filter(f => (f.data||'').startsWith(mesKey));
+  const despesasAtuais = mesFluxo.filter(f => f.tipo === 'saida' && f.categoria !== 'repasse' && f.status !== 'agendado').reduce((s,f) => s + f.valor, 0);
+  const projecaoDespesa = diaAtual > 0 ? (despesasAtuais / diaAtual) * diasMes : 0;
+  const lucroProj = projecao - projecaoDespesa;
+
   // KPIs
   document.getElementById('kpiGrid').innerHTML = `
     <div class="kpi-card" style="--kpi-color:var(--rose)">
@@ -849,27 +859,23 @@ function renderDashboard() {
       <div class="kpi-sub">${vm.filter(v=>v.status!=='finalizado'&&v.status!=='cancelado').length} pedido(s) em aberto</div>
     </div>`;
 
-  // Projeção e barra de progresso (Dias corridos ativado)
+  // Projeção
   document.getElementById('projecaoVal').textContent = BRL(projecao);
   document.getElementById('projecaoSub').textContent = `Média/dia: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}`;
+  document.getElementById('lucroProjVal').textContent = BRL(lucroProj);
   document.getElementById('metaPct').textContent = pctMeta.toFixed(1) + '%';
   document.getElementById('metaBar').style.width = pctMeta + '%';
   document.getElementById('diasPct').textContent = pctDias.toFixed(1) + '%';
   document.getElementById('diasBar').style.width = pctDias + '%';
 
-  // ── GRÁFICO 1: Receita Acumulada vs Meta ──────────────────
+  // ── GRÁFICO 1: Receita Acumulada vs Meta
   const byDay = {};
   vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.data) return;
-    const val = v.status === 'finalizado'
-      ? (parseFloat(v.valorPago)||0)
-      : (parseFloat(v.sinal)||0);
+    const val = v.status === 'finalizado' ? (parseFloat(v.valorPago)||0) : (parseFloat(v.sinal)||0);
     byDay[v.data] = (byDay[v.data]||0) + val;
   });
-  const days = Array.from({length: diasMes}, (_,i) => {
-    const d = String(i+1).padStart(2,'0');
-    return `${ano}-${String(mes+1).padStart(2,'0')}-${d}`;
-  });
+  const days = Array.from({length: diasMes}, (_,i) => `${ano}-${String(mes+1).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`);
   const metaDiaria = (meta.receita||0) / diasMes;
   let acum = 0;
   const acumData = days.map(d => { acum += (byDay[d]||0); return acum; });
@@ -887,7 +893,7 @@ function renderDashboard() {
     options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}} }, scales:{ x:{ticks:{font:{size:10},maxTicksLimit:10}}, y:{ticks:{font:{size:10},callback:v=>'R$'+v.toLocaleString('pt-BR')}} } }
   });
 
-  // ── GRÁFICO 2: Faturamento por Dia (barras) ───────────────
+  // ── GRÁFICO 2: Faturamento por Dia
   const dayLabels = Object.keys(byDay).sort();
   const dayValues = dayLabels.map(d => byDay[d]);
   const todayStr = today();
@@ -902,7 +908,7 @@ function renderDashboard() {
     options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:10}}}, y:{ticks:{font:{size:10},callback:v=>'R$'+v}} } }
   });
 
-  // ── GRÁFICO 3: Origem (rosca) ─────────────────────────────
+  // ── GRÁFICO 3: Origem
   const byOrigem = {};
   vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.fonte) return;
@@ -914,14 +920,11 @@ function renderDashboard() {
 
   mkChart('chartOrigem', {
     type: 'doughnut',
-    data: {
-      labels: origemKeys,
-      datasets: [{ data: origemKeys.map(k=>byOrigem[k]), backgroundColor: origemColors, borderWidth:2, borderColor:'#fff' }]
-    },
+    data: { labels: origemKeys, datasets: [{ data: origemKeys.map(k=>byOrigem[k]), backgroundColor: origemColors, borderWidth:2, borderColor:'#fff' }] },
     options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom',labels:{font:{size:10},boxWidth:10}} } }
   });
 
-  // ── GRÁFICO 4: Top Produtos (barras horizontais) ──────────
+  // ── GRÁFICO 4: Top Produtos
   const byProd = {};
   vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.produto) return;
@@ -931,10 +934,7 @@ function renderDashboard() {
 
   mkChart('chartProdutos', {
     type: 'bar',
-    data: {
-      labels: prodSorted.map(([k])=>k.length>18?k.slice(0,16)+'…':k),
-      datasets: [{ label:'Pedidos', data: prodSorted.map(([,v])=>v), backgroundColor:'rgba(74,127,193,0.7)', borderRadius:4 }]
-    },
+    data: { labels: prodSorted.map(([k])=>k.length>18?k.slice(0,16)+'…':k), datasets: [{ label:'Pedidos', data: prodSorted.map(([,v])=>v), backgroundColor:'rgba(74,127,193,0.7)', borderRadius:4 }] },
     options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:10},stepSize:1}}, y:{ticks:{font:{size:10}}} } }
   });
 
@@ -958,7 +958,7 @@ function renderDashboard() {
 // VENDAS E FILTROS MULTI-STATUS
 // ============================================================
 let vendaEditId = null;
-let activeStatuses = new Set(); // NOVO: Permite vários status selecionados
+let activeStatuses = new Set(); 
 let currentPageV = 1;
 const PER_PAGE = 20;
 
@@ -972,14 +972,8 @@ const STATUS_OPTS = [
   {v:'cancelado',l:'❌ Cancelado'},
 ];
 
-function fonteClass(f) {
-  return f==='tráfego pago'?'trafego':f==='orgânico'?'organico':f==='catálogo'?'catalogo':f==='indicação'?'indicacao':f||'';
-}
-
-function statusClass(s) {
-  if (!s) return '';
-  return s.replace(/\s+/g,'-').toLowerCase();
-}
+function fonteClass(f) { return f==='tráfego pago'?'trafego':f==='orgânico'?'organico':f==='catálogo'?'catalogo':f==='indicação'?'indicacao':f||''; }
+function statusClass(s) { if (!s) return ''; return s.replace(/\s+/g,'-').toLowerCase(); }
 
 function statusSelectHtml(id, current) {
   const sc = statusClass(current);
@@ -991,9 +985,7 @@ function quickStatus(id, sel) {
   const v = vendas.find(x=>x.id===id);
   if (!v) return;
   v.status = sel.value;
-  if (v.status === 'finalizado' && (!v.valorPago || parseFloat(v.valorPago) < parseFloat(v.valorProd))) {
-    v.valorPago = v.valorProd;
-  }
+  if (v.status === 'finalizado' && (!v.valorPago || parseFloat(v.valorPago) < parseFloat(v.valorProd))) { v.valorPago = v.valorProd; }
   sel.className = `status-select s-${statusClass(sel.value)}`;
   save(); saveVendaRemote(v);
   updateTarefasBadge();
@@ -1020,15 +1012,12 @@ function rowHtml(v) {
 
 function renderVendas() {
   const q = (document.getElementById('searchVendas')?.value||'').toLowerCase();
-  // NOVO: Lê o filtro de Mês/Ano
-  const monthFilter = document.getElementById('filterDataVendas')?.value;
+  const dateFilter = document.getElementById('filterDataVendas')?.value;
 
   let list = vendas.filter(v => {
-    // Filtro Multi-Status
     if (activeStatuses.size > 0 && !activeStatuses.has(statusClass(v.status))) return false;
-    // Filtro Mês/Ano
-    if (monthFilter && (!v.data || !v.data.startsWith(monthFilter))) return false;
-    // Filtro de Texto
+    // Filtro por DIA EXATO (Se vazio, mostra tudo)
+    if (dateFilter && v.data !== dateFilter) return false;
     if (q) { const h=[v.contato,v.produto,v.fonte,v.obs].join(' ').toLowerCase(); if (!h.includes(q)) return false; }
     return true;
   }).sort((a,b)=>(b.data||'')>(a.data||'')?1:-1);
@@ -1054,33 +1043,17 @@ function setPageV(p) { currentPageV=p; renderVendas(); }
 
 function setFilter(el) {
   const val = el.dataset.val;
-  
   if (!val) { 
-    // Se clicou em "Todos", limpa a seleção múltipla
     activeStatuses.clear();
     document.querySelectorAll('#statusFilter .filter-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
   } else {
-    // Se clicou num status específico, desmarca o "Todos"
     document.querySelector('#statusFilter .filter-chip[data-val=""]').classList.remove('active');
-    
-    // Adiciona ou remove da lista de múltiplos status
-    if (activeStatuses.has(val)) {
-      activeStatuses.delete(val);
-      el.classList.remove('active');
-    } else {
-      activeStatuses.add(val);
-      el.classList.add('active');
-    }
-    
-    // Se esvaziar, volta pro "Todos"
-    if (activeStatuses.size === 0) {
-      document.querySelector('#statusFilter .filter-chip[data-val=""]').classList.add('active');
-    }
+    if (activeStatuses.has(val)) { activeStatuses.delete(val); el.classList.remove('active'); } 
+    else { activeStatuses.add(val); el.classList.add('active'); }
+    if (activeStatuses.size === 0) { document.querySelector('#statusFilter .filter-chip[data-val=""]').classList.add('active'); }
   }
-  
-  currentPageV = 1;
-  renderVendas();
+  currentPageV = 1; renderVendas();
 }
 
 function openModalVenda(v=null) {
@@ -1088,13 +1061,8 @@ function openModalVenda(v=null) {
   document.getElementById('modalVendaTitle').textContent = v ? 'Editar Venda' : 'Nova Venda';
   document.getElementById('vStatus').value = v?.status || 'aguardando';
   
-  // NOVO: Data puxa ontem como padrão
   let defaultDate = today();
-  if (!v) {
-    const ontem = new Date();
-    ontem.setDate(ontem.getDate() - 1);
-    defaultDate = ontem.toISOString().split('T')[0];
-  }
+  if (!v) { const ontem = new Date(); ontem.setDate(ontem.getDate() - 1); defaultDate = ontem.toISOString().split('T')[0]; }
   document.getElementById('vData').value = v?.data || defaultDate;
 
   document.getElementById('vContato').value = v?.contato || '';
@@ -1124,12 +1092,9 @@ function onProdutoSelect() {
   document.getElementById('vProdutoSelect').value = '';
 }
 
-// NOVO: Atualiza Valor Pago de acordo com o Sinal (a não ser que esteja finalizado)
 function autoValorPago() {
   const status = document.getElementById('vStatus').value;
-  if (status !== 'finalizado') {
-    document.getElementById('vValorPago').value = document.getElementById('vSinal').value;
-  }
+  if (status !== 'finalizado') { document.getElementById('vValorPago').value = document.getElementById('vSinal').value; }
 }
 
 function autoSinal() {
@@ -1140,9 +1105,7 @@ function autoSinal() {
     document.getElementById('vSinal').value = calc;
     if (status !== 'finalizado') document.getElementById('vValorPago').value = calc;
   }
-  if (status === 'finalizado' && v > 0) {
-    document.getElementById('vValorPago').value = v.toFixed(2);
-  }
+  if (status === 'finalizado' && v > 0) { document.getElementById('vValorPago').value = v.toFixed(2); }
 }
 
 function editVenda(id) {
@@ -1163,16 +1126,10 @@ function saveVenda() {
   const valorPago = status === 'finalizado' ? (valorPagoInput > 0 ? valorPagoInput : valorProd) : valorPagoInput;
 
   const v = {
-    id: vendaEditId || Date.now().toString(),
-    status,
-    data: document.getElementById('vData').value,
-    contato: document.getElementById('vContato').value.trim(),
-    fonte: document.getElementById('vFonte').value,
-    valorProd,
-    produto: document.getElementById('vProduto').value.trim(),
-    sinal: parseFloat(document.getElementById('vSinal').value)||0,
-    valorPago,
-    obs: document.getElementById('vObs').value.trim(),
+    id: vendaEditId || Date.now().toString(), status, data: document.getElementById('vData').value,
+    contato: document.getElementById('vContato').value.trim(), fonte: document.getElementById('vFonte').value,
+    valorProd, produto: document.getElementById('vProduto').value.trim(), sinal: parseFloat(document.getElementById('vSinal').value)||0,
+    valorPago, obs: document.getElementById('vObs').value.trim(),
   };
   if (!v.contato) { showToast('Preencha o contato','error'); return; }
   if (!v.data) { showToast('Preencha a data','error'); return; }
@@ -1183,7 +1140,7 @@ function saveVenda() {
 }
 
 // ============================================================
-// FLUXO DE CAIXA
+// FLUXO DE CAIXA E REPASSES
 // ============================================================
 function initFluxoMes() {
   const sel = document.getElementById('fluxoMesFilter');
@@ -1203,32 +1160,58 @@ function renderFluxo() {
   initFluxoMes();
   const mesKey = document.getElementById('fluxoMesFilter')?.value || getMesKey(getMesAno().mes, getMesAno().ano);
   const mesFluxo = fluxo.filter(f=>(f.data||'').startsWith(mesKey));
+  
+  // Apenas soma o que NÃO é agendado
+  const mesEfetivado = mesFluxo.filter(f => f.status !== 'agendado');
   const vendasFat = getVendasMes(mesKey).filter(v=>v.status==='finalizado').reduce((s,v)=>s+(parseFloat(v.valorPago)||0),0);
-  const entradasManuais = mesFluxo.filter(f=>f.tipo==='entrada').reduce((s,f)=>s+f.valor,0);
-  const saídas = mesFluxo.filter(f=>f.tipo==='saida').reduce((s,f)=>s+f.valor,0);
+  const entradasManuais = mesEfetivado.filter(f=>f.tipo==='entrada').reduce((s,f)=>s+f.valor,0);
+  const saídas = mesEfetivado.filter(f=>f.tipo==='saida').reduce((s,f)=>s+f.valor,0);
   const entradas = vendasFat + entradasManuais;
   const saldo = entradas - saídas;
 
   document.getElementById('saldoBoxes').innerHTML = `
-    <div class="saldo-box entradas"><div class="val">${BRL(entradas)}</div><div class="lbl">Entradas</div></div>
-    <div class="saldo-box saidas"><div class="val">${BRL(saídas)}</div><div class="lbl">Saídas</div></div>
-    <div class="saldo-box saldo"><div class="val">${BRL(saldo)}</div><div class="lbl">Saldo</div></div>`;
+    <div class="saldo-box entradas"><div class="val">${BRL(entradas)}</div><div class="lbl">Entradas Efetivadas</div></div>
+    <div class="saldo-box saidas"><div class="val">${BRL(saídas)}</div><div class="lbl">Saídas Efetivadas</div></div>
+    <div class="saldo-box saldo"><div class="val">${BRL(saldo)}</div><div class="lbl">Saldo do Mês</div></div>`;
 
   const byCat = {};
-  mesFluxo.filter(f=>f.tipo==='saida').forEach(f=>{ byCat[f.categoria]=(byCat[f.categoria]||0)+f.valor; });
+  mesEfetivado.filter(f=>f.tipo==='saida').forEach(f=>{ byCat[f.categoria]=(byCat[f.categoria]||0)+f.valor; });
   document.getElementById('fluxoResumo').innerHTML = Object.entries(byCat).length
     ? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/saídas)*100}%;background:var(--red)"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
-    : '<p style="font-size:13px;color:var(--ink-muted)">Sem saídas lançadas</p>';
+    : '<p style="font-size:13px;color:var(--ink-muted)">Sem saídas efetivadas no mês</p>';
+
+  // GRÁFICO DE PIZZA - REPASSES DA LU
+  const faturamentoDoMes = getFaturamento(getVendasMes(mesKey));
+  mkChart('chartRepasses', {
+    type: 'doughnut',
+    data: {
+      labels: ['Dízimo (10%)', 'Caixa (9%)', 'Reserva (8%)', 'Impostos (7%)', 'Prolabore Conjunto (47%)', 'Luana (9%)', 'Gustavo (9%)'],
+      datasets: [{
+        data: [
+          faturamentoDoMes * 0.10, faturamentoDoMes * 0.09, faturamentoDoMes * 0.08, 
+          faturamentoDoMes * 0.07, faturamentoDoMes * 0.47, faturamentoDoMes * 0.09, faturamentoDoMes * 0.09
+        ],
+        backgroundColor: ['#e8546a', '#3dab7a', '#f0a030', '#4a7fc1', '#a855f7', '#ec4899', '#14b8a6'],
+        borderWidth: 2, borderColor:'#fff'
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'right',labels:{font:{size:10},boxWidth:10}} } }
+  });
 
   document.getElementById('fluxoBody').innerHTML = [...mesFluxo].sort((a,b)=>(b.data||'')>(a.data||'')?1:-1).map(f=>`
     <tr>
       <td style="color:var(--ink-muted)">${f.data||'—'}</td>
       <td>${f.descricao||'—'}</td>
       <td>${f.categoria||'—'}</td>
-      <td>${f.tipo==='entrada'?'<span style="color:var(--green);font-weight:600">Entrada</span>':'<span style="color:var(--red);font-weight:600">Saída</span>'}</td>
+      <td>
+        ${f.tipo==='entrada'?'<span style="color:var(--green);font-weight:600">Entrada</span>':'<span style="color:var(--red);font-weight:600">Saída</span>'}
+      </td>
+      <td>
+        ${f.status==='agendado' ? '<span style="font-size:10px;background:var(--amber-light);color:var(--amber);padding:3px 6px;border-radius:4px;font-weight:bold;">⏳ Agendado</span>' : '<span style="font-size:10px;background:var(--green-light);color:var(--green);padding:3px 6px;border-radius:4px;font-weight:bold;">✅ Pago</span>'}
+      </td>
       <td style="font-weight:600;color:${f.tipo==='entrada'?'var(--green)':'var(--red)'}">${f.tipo==='entrada'?'+':'−'}${BRL(f.valor)}</td>
       <td><button class="btn btn-danger btn-sm" onclick="deleteFluxo('${f.id}')">🗑</button></td>
-    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma transação manual</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma transação manual</td></tr>';
 
   if (!document.getElementById('fluxoData').value) document.getElementById('fluxoData').value = today();
 }
@@ -1239,8 +1222,10 @@ function addFluxo() {
   const desc = document.getElementById('fluxoDesc').value.trim();
   const val = parseFloat(document.getElementById('fluxoVal').value)||0;
   const cat = document.getElementById('fluxoCateg').value;
+  const stat = document.getElementById('fluxoStatus').value; // NOVO
   if (!data||!val||!desc) { showToast('Preencha todos os campos','error'); return; }
-  fluxo.push({id:Date.now().toString(),tipo,data,descricao:desc,valor:val,categoria:cat});
+  
+  fluxo.push({id:Date.now().toString(),tipo,data,descricao:desc,valor:val,categoria:cat, status:stat});
   save(); saveFluxoRemote();
   document.getElementById('fluxoDesc').value = '';
   document.getElementById('fluxoVal').value = '';
@@ -1251,6 +1236,16 @@ function addFluxo() {
 function deleteFluxo(id) {
   if (!confirm('Excluir transação?')) return;
   fluxo = fluxo.filter(f=>f.id!==id); save(); saveFluxoRemote(); renderFluxo();
+}
+
+function pagarConta(id) {
+  const f = fluxo.find(x => x.id === id);
+  if (f) {
+    f.status = 'pago';
+    save(); saveFluxoRemote();
+    showToast('Pagamento efetivado!', 'success');
+    renderTarefas(); renderFluxo(); renderDashboard();
+  }
 }
 
 // ============================================================
@@ -1310,7 +1305,6 @@ function restoreJSON(event) {
       if(!confirm(`Restaurar backup de ${dt}?\n\nIsso VAI SUBSTITUIR todos os dados atuais.`)) return;
       vendas=data.vendas||[]; fluxo=data.fluxo||[]; metas=data.metas||{};
       save();
-      // Sincroniza tudo com Firebase
       if (db) {
         showToast('Sincronizando com Firebase...','');
         await Promise.all([
@@ -1325,9 +1319,6 @@ function restoreJSON(event) {
   reader.readAsText(file); event.target.value='';
 }
 
-// ============================================================
-// EXPORT CSV
-// ============================================================
 function exportCSV() {
   const rows=[['Status','Contato','Data','Fonte','Produto','Valor Produto','Sinal','Valor Pago','Obs']];
   vendas.forEach(v=>rows.push([v.status,v.contato,v.data,v.fonte,v.produto,v.valorProd,v.sinal,v.valorPago,v.obs]));
@@ -1338,18 +1329,15 @@ function exportCSV() {
   showToast('CSV exportado ✓','success');
 }
 
-// ============================================================
-// MODAL
-// ============================================================
 function closeModal(id) { document.getElementById(id).classList.remove('open'); vendaEditId=null; }
 document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id);}));
 
 
 // ============================================================
-// TAREFAS DO DIA
+// TAREFAS DO DIA (VENDAS E PAGAMENTOS AGENDADOS)
 // ============================================================
-// NOVO: Exibe apenas os pedidos "aguardando"
-const STATUS_PENDENTES = ['aguardando'];
+// NOVO: Adicionado 'pg-pendente' de volta as tarefas
+const STATUS_PENDENTES = ['aguardando', 'pg-pendente'];
 
 function getPendentes() {
   const ontem = new Date(); ontem.setDate(ontem.getDate() - 1);
@@ -1357,11 +1345,17 @@ function getPendentes() {
   return vendas.filter(v =>
     STATUS_PENDENTES.includes(statusClass(v.status)) &&
     v.data && v.data <= ontemStr
-  ).sort((a,b) => a.data < b.data ? -1 : 1); // mais antigos primeiro
+  ).sort((a,b) => a.data < b.data ? -1 : 1); 
+}
+
+// Busca pagamentos agendados para hoje ou dias anteriores
+function getPendentesFluxo() {
+  const hoje = today();
+  return fluxo.filter(f => f.tipo === 'saida' && f.status === 'agendado' && f.data <= hoje);
 }
 
 function updateTarefasBadge() {
-  const count = getPendentes().length;
+  const count = getPendentes().length + getPendentesFluxo().length;
   const badge = document.getElementById('navAlertCount');
   if (!badge) return;
   badge.textContent = count;
@@ -1369,38 +1363,63 @@ function updateTarefasBadge() {
 }
 
 function renderTarefas() {
-  const lista = getPendentes();
-  document.getElementById('tarefasCount').textContent = lista.length;
+  const vendasLista = getPendentes();
+  const fluxoLista = getPendentesFluxo();
+  
+  document.getElementById('tarefasCount').textContent = vendasLista.length + fluxoLista.length;
   updateTarefasBadge();
 
-  if (!lista.length) {
+  if (!vendasLista.length && !fluxoLista.length) {
     document.getElementById('tarefasList').innerHTML = `
       <div class="tarefas-empty">
         <div class="big-icon">🎉</div>
         <h3>Tudo em dia!</h3>
-        <p>Não há pedidos aguardando atenção. Ótimo trabalho!</p>
+        <p>Sem pedidos ou pagamentos pendentes por hoje.</p>
       </div>`;
     return;
   }
 
   const todayStr = today();
-  const ontemStr = (() => { const d=new Date(); d.setDate(d.getDate()-1); return d.toISOString().split('T')[0]; })();
+  let html = '';
 
-  document.getElementById('tarefasList').innerHTML = lista.map(v => {
+  // Renderiza contas agendadas primeiro (Sempre com borda Urgente para destacar)
+  fluxoLista.forEach(f => {
+    html += `
+      <div class="tarefa-card urgente">
+        <div class="tarefa-dias-badge urgente" style="background:#fff3cd; color:#856404; border: 1px solid #ffeeba;">
+          <div class="tarefa-dias-num">💳</div>
+          <div class="tarefa-dias-label" style="font-size:7px;">PAGAR</div>
+        </div>
+        <div class="tarefa-info">
+          <div class="tarefa-contato">${f.descricao||'Pagamento'}</div>
+          <div class="tarefa-produto" style="font-weight:600; color:var(--red);">Pagamento Agendado</div>
+          <div class="tarefa-meta">
+            <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 Vencimento: ${f.data}</span>
+            <span class="tarefa-chip" style="background:#fdeaea;color:var(--red)">💰 ${BRL(f.valor)}</span>
+          </div>
+        </div>
+        <div class="tarefa-actions">
+          <button class="btn btn-primary btn-sm" onclick="pagarConta('${f.id}')">✓ Pagar Conta</button>
+        </div>
+      </div>`;
+  });
+
+  // Renderiza pedidos aguardando
+  vendasLista.forEach(v => {
     const diasAtraso = Math.floor((new Date(todayStr) - new Date(v.data)) / 86400000);
     const isUrgente = diasAtraso >= 2;
     const badgeClass = isUrgente ? 'urgente' : 'hoje';
     const cardClass = isUrgente ? 'urgente' : 'hoje';
     const restante = (parseFloat(v.valorProd)||0) - (parseFloat(v.valorPago)||0);
     const opts = STATUS_OPTS.map(o=>`<option value="${o.v}" ${o.v===v.status?'selected':''}>${o.l}</option>`).join('');
-    return `
+    html += `
       <div class="tarefa-card ${cardClass}">
         <div class="tarefa-dias-badge ${badgeClass}">
           <div class="tarefa-dias-num">${diasAtraso}</div>
           <div class="tarefa-dias-label">${diasAtraso===1?'dia':'dias'}</div>
         </div>
         <div class="tarefa-info">
-          <div class="tarefa-contato">${v.contato||'—'}</div>
+          <div class="tarefa-contato">🛍️ ${v.contato||'—'}</div>
           <div class="tarefa-produto">${v.produto||'—'}</div>
           <div class="tarefa-meta">
             <span class="tarefa-chip fonte-badge fonte-${fonteClass(v.fonte)}">${v.fonte||'—'}</span>
@@ -1416,27 +1435,83 @@ function renderTarefas() {
           <button class="btn btn-ghost btn-sm" onclick="editVenda('${v.id}');goTo('vendas')" title="Editar pedido">✏️</button>
         </div>
       </div>`;
-  }).join('');
+  });
+
+  document.getElementById('tarefasList').innerHTML = html;
 }
 
 function quickStatusTarefa(id, sel) {
   quickStatus(id, sel);
-  // Re-renderiza a tela de tarefas após mudança
   setTimeout(() => renderTarefas(), 100);
 }
+
+
+// ============================================================
+// GERADOR AUTOMÁTICO DE REPASSES (TODA SEXTA)
+// ============================================================
+function checarERealizarRepasses() {
+  const d = new Date();
+  if (d.getDay() !== 5) return; // Se não for sexta-feira, ignora.
+
+  const todayStr = d.toISOString().split('T')[0];
+  const repasseKey = 'repasse_auto_' + todayStr;
+  
+  // Se o repasse de hoje já foi feito, não faz de novo.
+  if (LS.get(repasseKey, false)) return;
+
+  // Calcula qual foi a última sexta-feira
+  const lastFriday = new Date();
+  lastFriday.setDate(d.getDate() - 7);
+  const lastStr = lastFriday.toISOString().split('T')[0];
+
+  // Faturamento da última sexta-feira até o início de hoje
+  let fatSemana = 0;
+  vendas.forEach(v => {
+      if (v.status !== 'cancelado' && v.data >= lastStr && v.data < todayStr) {
+          fatSemana += (v.status === 'finalizado' ? parseFloat(v.valorPago||0) : parseFloat(v.sinal||0));
+      }
+  });
+
+  if (fatSemana > 0) {
+      const regras = [
+          { desc: 'Dízimo (10%)', pct: 0.10 },
+          { desc: 'Caixa (9%)', pct: 0.09 },
+          { desc: 'Reserva (8%)', pct: 0.08 },
+          { desc: 'Impostos e Taxas (7%)', pct: 0.07 },
+          { desc: 'Prolabore / Gastos Conjuntos (47%)', pct: 0.47 },
+          { desc: 'Lucros Luana (9%)', pct: 0.09 },
+          { desc: 'Lucros Gustavo (9%)', pct: 0.09 }
+      ];
+      
+      regras.forEach(r => {
+          fluxo.push({
+              id: 'rep_' + Date.now().toString() + Math.floor(Math.random()*1000),
+              tipo: 'saida',
+              data: todayStr,
+              descricao: 'Repasse Automático Semana - ' + r.desc,
+              valor: fatSemana * r.pct,
+              categoria: 'repasse',
+              status: 'pago' // Repasses automáticos já entram como pagos
+          });
+      });
+      
+      save();
+      if(db) saveFluxoRemote();
+      showToast('Repasses Automáticos da Semana realizados! 💰', 'success');
+  }
+  
+  // Marca que os repasses desta sexta foram feitos
+  LS.set(repasseKey, true);
+}
+
 
 // ============================================================
 // INIT
 // ============================================================
 async function init() {
-  // Metas de maio default
-  if (!metas['2026-05']) {
-    metas['2026-05'] = { receita:14300, vendas:313, marketing:2914, dias:31 };
-  }
-
+  if (!metas['2026-05']) { metas['2026-05'] = { receita:14300, vendas:313, marketing:2914, dias:31 }; }
   saveLocal();
 
-  // Carrega Firebase (se configurado) — atualiza dados e esconde loading
   if (firebaseConfigured) {
     await loadFromFirebase();
   } else {
@@ -1445,6 +1520,10 @@ async function init() {
   }
 
   document.getElementById('fluxoData').value = today();
+  
+  // Verifica se é sexta para gerar repasses da semana automaticamente
+  checarERealizarRepasses();
+
   updateTarefasBadge();
   renderDashboard();
 }
@@ -1452,12 +1531,12 @@ async function init() {
 // ============================================================
 // CONTROLE DE ACESSO (LOGIN)
 // ============================================================
-const SENHA_ACESSO = "luluzices2026"; // Mude aqui para a senha que você quiser!
+const SENHA_ACESSO = "luluzices2026"; 
 
 function checkLogin() {
   const input = document.getElementById('passInput').value;
   if (input === SENHA_ACESSO) {
-    LS.set('logado', true); // Salva no navegador para não pedir toda hora
+    LS.set('logado', true); 
     liberarAcesso();
   } else {
     showToast('Senha incorreta 🔒', 'error');
@@ -1471,26 +1550,21 @@ function liberarAcesso() {
   overlay.style.opacity = '0';
   setTimeout(() => {
     overlay.style.display = 'none';
-    // Só agora o sistema inicializa e busca os dados no Firebase
     init(); 
-    // --- Lógica para fechar o menu no mobile ---
-document.querySelectorAll('.nav-item').forEach(item => {
-  item.addEventListener('click', () => {
-    // Verifica se a tela é pequena (mobile)
-    if (window.innerWidth <= 768) {
-      const sidebar = document.querySelector('.sidebar');
-      sidebar.classList.remove('active');
-    }
-  });
-});
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        if (window.innerWidth <= 768) {
+          const sidebar = document.querySelector('.sidebar');
+          sidebar.classList.remove('active');
+        }
+      });
+    });
   }, 300);
 }
 
-// Quando a página carrega, verifica se já estava logado
 if (LS.get('logado', false)) {
   liberarAcesso();
 } else {
-  // Permite dar 'Enter' para logar
   document.getElementById('passInput').addEventListener('keypress', function (e) {
     if (e.key === 'Enter') checkLogin();
   });
