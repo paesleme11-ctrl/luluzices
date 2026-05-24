@@ -498,8 +498,9 @@
             <div class="form-group"><label>Meta de Receita (R$)</label><input type="number" id="metaReceita" placeholder="14300"></div>
             <div class="form-group"><label>Meta de Vendas (qtd)</label><input type="number" id="metaVendas" placeholder="313"></div>
           </div>
-          <div class="form-row cols-2">
-            <div class="form-group"><label>Gasto Marketing (R$)</label><input type="number" id="metaMarketing" placeholder="2914"></div>
+          <div class="form-row cols-3">
+            <div class="form-group"><label>Meta de ROI (x)</label><input type="number" id="metaROI" placeholder="5" step="0.1"></div>
+            <div class="form-group"><label>Meta de CAC (R$)</label><input type="number" id="metaCAC" placeholder="25" step="0.5"></div>
             <div class="form-group"><label>Dias do Mês</label><input type="number" id="metaDias" placeholder="31" min="28" max="31"></div>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px" onclick="saveMeta()">Salvar Metas</button>
@@ -761,7 +762,7 @@ const getMesKey = (mes, ano) => `${ano}-${String(mes+1).padStart(2,'0')}`;
 
 function getMeta() {
   const { mes, ano } = getMesAno();
-  return metas[getMesKey(mes, ano)] || { receita: 14300, vendas: 313, marketing: 2914, dias: 31 };
+  return metas[getMesKey(mes, ano)] || { receita: 14300, vendas: 313, roi: 5, cac: 20, dias: 31 };
 }
 
 function getVendasMes(mesKey) {
@@ -815,10 +816,19 @@ function renderDashboard() {
   const fatTotal = getFaturamento(vm);
   const totalPedidos = getTotalPedidos(vm);
   const vconcluidas = vm.filter(v => v.status === 'finalizado').length;
-  const marketing = parseFloat(meta.marketing) || 0;
+
+  // Lógica de cálculo a partir do Fluxo de Caixa Real
+  const mesFluxo = fluxo.filter(f => (f.data||'').startsWith(mesKey));
+  const despesasAtuais = mesFluxo.filter(f => f.tipo === 'saida' && f.categoria !== 'repasse' && f.status !== 'agendado').reduce((s,f) => s + f.valor, 0);
+  
+  // Capta apenas saídas na categoria "marketing" que já foram pagas
+  const marketingGasto = mesFluxo.filter(f => f.tipo === 'saida' && f.categoria === 'marketing' && f.status !== 'agendado').reduce((s,f) => s + f.valor, 0);
+
   const ticket = totalPedidos > 0 ? fatTotal / totalPedidos : 0;
-  const roi = marketing > 0 ? (fatTotal / marketing).toFixed(2) : '∞';
-  const cac = totalPedidos > 0 && marketing > 0 ? (marketing / totalPedidos).toFixed(2) : 0;
+  const roiNum = marketingGasto > 0 ? (fatTotal / marketingGasto) : 0;
+  const roi = marketingGasto > 0 ? roiNum.toFixed(1) : '∞';
+  const cacNum = totalPedidos > 0 && marketingGasto > 0 ? (marketingGasto / totalPedidos) : 0;
+  
   const aReceber = vm.filter(v => v.status !== 'finalizado' && v.status !== 'cancelado')
     .reduce((s, v) => s + Math.max((parseFloat(v.valorProd)||0) - (parseFloat(v.sinal)||0), 0), 0);
 
@@ -830,11 +840,12 @@ function renderDashboard() {
   const pctMeta = Math.min((fatTotal / (meta.receita||1)) * 100, 100);
   const pctDias = Math.min((diaAtual / diasMes) * 100, 100);
 
-  // NOVO: Cálculo de Despesas Fixas e Lucro Projetado
-  const mesFluxo = fluxo.filter(f => (f.data||'').startsWith(mesKey));
-  const despesasAtuais = mesFluxo.filter(f => f.tipo === 'saida' && f.categoria !== 'repasse' && f.status !== 'agendado').reduce((s,f) => s + f.valor, 0);
   const projecaoDespesa = diaAtual > 0 ? (despesasAtuais / diaAtual) * diasMes : 0;
   const lucroProj = projecao - projecaoDespesa;
+
+  // Badges coloridos dependendo se bateu as novas metas ou não
+  const roiColor = roiNum >= (meta.roi || 0) ? 'var(--green)' : (roiNum > 0 ? 'var(--red)' : 'var(--ink-muted)');
+  const cacColor = cacNum > 0 && cacNum <= (meta.cac || Infinity) ? 'var(--green)' : (cacNum > 0 ? 'var(--red)' : 'var(--ink-muted)');
 
   // KPIs
   document.getElementById('kpiGrid').innerHTML = `
@@ -851,7 +862,7 @@ function renderDashboard() {
     <div class="kpi-card" style="--kpi-color:var(--amber)">
       <div class="kpi-label">Ticket Médio</div>
       <div class="kpi-value">${BRL(ticket)}</div>
-      <div class="kpi-sub">ROI: ${roi} &nbsp;|&nbsp; CAC: ${BRL(cac)}</div>
+      <div class="kpi-sub"><span style="color:${roiColor}; font-weight:500;">ROI: ${roi}x (Meta ${meta.roi})</span> &nbsp;|&nbsp; <span style="color:${cacColor}; font-weight:500;">CAC: ${BRL(cacNum)} (Meta ${meta.cac})</span></div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--blue)">
       <div class="kpi-label">A Receber</div>
@@ -1222,7 +1233,7 @@ function addFluxo() {
   const desc = document.getElementById('fluxoDesc').value.trim();
   const val = parseFloat(document.getElementById('fluxoVal').value)||0;
   const cat = document.getElementById('fluxoCateg').value;
-  const stat = document.getElementById('fluxoStatus').value; // NOVO
+  const stat = document.getElementById('fluxoStatus').value;
   if (!data||!val||!desc) { showToast('Preencha todos os campos','error'); return; }
   
   fluxo.push({id:Date.now().toString(),tipo,data,descricao:desc,valor:val,categoria:cat, status:stat});
@@ -1249,7 +1260,7 @@ function pagarConta(id) {
 }
 
 // ============================================================
-// METAS
+// METAS (NOVO FORMATO DE CAC E ROI)
 // ============================================================
 function renderMetas() {
   const { mes, ano } = getMesAno();
@@ -1258,7 +1269,8 @@ function renderMetas() {
   const m = getMeta();
   document.getElementById('metaReceita').value = m.receita||'';
   document.getElementById('metaVendas').value = m.vendas||'';
-  document.getElementById('metaMarketing').value = m.marketing||'';
+  document.getElementById('metaROI').value = m.roi||'';
+  document.getElementById('metaCAC').value = m.cac||'';
   document.getElementById('metaDias').value = m.dias||31;
 
   document.getElementById('metasList').innerHTML = Object.entries(metas).sort().reverse().map(([k,m])=>{
@@ -1266,7 +1278,7 @@ function renderMetas() {
     const label=new Date(parseInt(y),parseInt(mo)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
     return `<div style="background:var(--cream);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px">
       <div style="font-weight:600;font-size:14px">${label}</div>
-      <div style="font-size:12px;color:var(--ink-muted);margin-top:4px">Meta: ${BRL(m.receita)} · Vendas: ${m.vendas} · Marketing: ${BRL(m.marketing)} · ${m.dias} dias</div>
+      <div style="font-size:12px;color:var(--ink-muted);margin-top:4px">Receita: ${BRL(m.receita)} · Vendas: ${m.vendas} · Meta ROI: ${m.roi}x · Meta CAC: ${BRL(m.cac)} · ${m.dias} dias</div>
     </div>`;
   }).join('') || '<div class="empty-state"><div class="icon">🎯</div><p>Nenhuma meta configurada</p></div>';
 }
@@ -1277,7 +1289,8 @@ function saveMeta() {
   metas[getMesKey(mes,ano)]={
     receita:parseFloat(document.getElementById('metaReceita').value)||0,
     vendas:parseInt(document.getElementById('metaVendas').value)||0,
-    marketing:parseFloat(document.getElementById('metaMarketing').value)||0,
+    roi:parseFloat(document.getElementById('metaROI').value)||0,
+    cac:parseFloat(document.getElementById('metaCAC').value)||0,
     dias:parseInt(document.getElementById('metaDias').value)||31,
   };
   save(); saveMetasRemote(); showToast('Metas salvas ✓','success'); renderMetas();
@@ -1336,7 +1349,6 @@ document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click
 // ============================================================
 // TAREFAS DO DIA (VENDAS E PAGAMENTOS AGENDADOS)
 // ============================================================
-// NOVO: Adicionado 'pg-pendente' de volta as tarefas
 const STATUS_PENDENTES = ['aguardando', 'pg-pendente'];
 
 function getPendentes() {
@@ -1348,7 +1360,6 @@ function getPendentes() {
   ).sort((a,b) => a.data < b.data ? -1 : 1); 
 }
 
-// Busca pagamentos agendados para hoje ou dias anteriores
 function getPendentesFluxo() {
   const hoje = today();
   return fluxo.filter(f => f.tipo === 'saida' && f.status === 'agendado' && f.data <= hoje);
@@ -1382,7 +1393,6 @@ function renderTarefas() {
   const todayStr = today();
   let html = '';
 
-  // Renderiza contas agendadas primeiro (Sempre com borda Urgente para destacar)
   fluxoLista.forEach(f => {
     html += `
       <div class="tarefa-card urgente">
@@ -1404,7 +1414,6 @@ function renderTarefas() {
       </div>`;
   });
 
-  // Renderiza pedidos aguardando
   vendasLista.forEach(v => {
     const diasAtraso = Math.floor((new Date(todayStr) - new Date(v.data)) / 86400000);
     const isUrgente = diasAtraso >= 2;
@@ -1451,20 +1460,17 @@ function quickStatusTarefa(id, sel) {
 // ============================================================
 function checarERealizarRepasses() {
   const d = new Date();
-  if (d.getDay() !== 5) return; // Se não for sexta-feira, ignora.
+  if (d.getDay() !== 5) return; 
 
   const todayStr = d.toISOString().split('T')[0];
   const repasseKey = 'repasse_auto_' + todayStr;
   
-  // Se o repasse de hoje já foi feito, não faz de novo.
   if (LS.get(repasseKey, false)) return;
 
-  // Calcula qual foi a última sexta-feira
   const lastFriday = new Date();
   lastFriday.setDate(d.getDate() - 7);
   const lastStr = lastFriday.toISOString().split('T')[0];
 
-  // Faturamento da última sexta-feira até o início de hoje
   let fatSemana = 0;
   vendas.forEach(v => {
       if (v.status !== 'cancelado' && v.data >= lastStr && v.data < todayStr) {
@@ -1491,7 +1497,7 @@ function checarERealizarRepasses() {
               descricao: 'Repasse Automático Semana - ' + r.desc,
               valor: fatSemana * r.pct,
               categoria: 'repasse',
-              status: 'pago' // Repasses automáticos já entram como pagos
+              status: 'pago'
           });
       });
       
@@ -1500,7 +1506,6 @@ function checarERealizarRepasses() {
       showToast('Repasses Automáticos da Semana realizados! 💰', 'success');
   }
   
-  // Marca que os repasses desta sexta foram feitos
   LS.set(repasseKey, true);
 }
 
@@ -1509,7 +1514,7 @@ function checarERealizarRepasses() {
 // INIT
 // ============================================================
 async function init() {
-  if (!metas['2026-05']) { metas['2026-05'] = { receita:14300, vendas:313, marketing:2914, dias:31 }; }
+  if (!metas['2026-05']) { metas['2026-05'] = { receita:14300, vendas:313, roi: 5, cac: 20, dias:31 }; }
   saveLocal();
 
   if (firebaseConfigured) {
@@ -1521,7 +1526,6 @@ async function init() {
 
   document.getElementById('fluxoData').value = today();
   
-  // Verifica se é sexta para gerar repasses da semana automaticamente
   checarERealizarRepasses();
 
   updateTarefasBadge();
