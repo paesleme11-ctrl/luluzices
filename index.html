@@ -1829,7 +1829,7 @@ function renderTarefas() {
   // ---- 4. AGUARDANDO (não-personalizado) ----
   const aguardandoNormais = aguardandoLista.filter(v => !isPersonalizado(v));
   if (mostrar('producao') && aguardandoNormais.length > 0) {
-    html += `<div class="tarefa-section-title">⏳ Aguardando Retorno</div>`;
+    html += `<div class="tarefa-section-title">⏳ Aguardando Produção </div>`;
     aguardandoNormais.forEach(v => { html += cardVenda(v, 'producao'); });
   }
 
