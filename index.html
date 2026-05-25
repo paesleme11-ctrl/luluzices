@@ -24,6 +24,7 @@
     --amber: #f0a030; --amber-light: #fef3dc;
     --blue: #4a7fc1; --blue-light: #dce9f8;
     --red: #e84040; --border: #ecddd6;
+    --purple: #7c3aed; --purple-light: #ede9fe;
     --shadow-lg: 0 8px 32px rgba(26,18,20,0.12);
     --radius: 14px; --radius-sm: 8px;
   }
@@ -200,13 +201,59 @@
   /* TAREFAS */
   .tarefas-header {
     background:linear-gradient(135deg,#c23650 0%,#8b1a2e 100%);
-    border-radius:var(--radius); padding:24px 28px; color:#fff; margin-bottom:24px;
+    border-radius:var(--radius); padding:24px 28px; color:#fff; margin-bottom:20px;
     display:flex; align-items:center; justify-content:space-between;
   }
   .tarefas-header h2 { font-family:'DM Serif Display',serif; font-size:24px; }
   .tarefas-header p { font-size:13px; opacity:0.8; margin-top:4px; }
   .tarefas-count { font-family:'DM Serif Display',serif; font-size:48px; line-height:1; }
   .tarefas-count-label { font-size:12px; opacity:0.7; text-align:center; }
+
+  /* TAREFAS FILTROS */
+  .tarefas-filter-bar {
+    display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px;
+    background:#fff; border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 18px; align-items:center;
+  }
+  .tarefas-filter-label {
+    font-size:11px; font-weight:700; color:var(--ink-muted); text-transform:uppercase;
+    letter-spacing:1px; margin-right:4px;
+  }
+  .tarefas-chip {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:6px 14px; border-radius:20px; font-size:12.5px; font-weight:600;
+    cursor:pointer; border:1.5px solid var(--border); background:#fff;
+    transition:all 0.15s; font-family:'DM Sans',sans-serif; white-space:nowrap;
+  }
+  .tarefas-chip:hover { border-color:var(--ink-muted); }
+  .tarefas-chip.active-all { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .tarefas-chip.active-pagamentos { background:#fdeaea; color:var(--red); border-color:var(--red); }
+  .tarefas-chip.active-agendadas { background:var(--amber-light); color:#9a5f00; border-color:var(--amber); }
+  .tarefas-chip.active-producao { background:var(--purple-light); color:var(--purple); border-color:var(--purple); }
+  .tarefas-chip.active-personalizados { background:var(--purple-light); color:var(--purple); border-color:var(--purple); }
+
+  /* Contadores nos chips */
+  .chip-count {
+    background:rgba(0,0,0,0.12); color:inherit;
+    font-size:10px; font-weight:700; padding:1px 6px;
+    border-radius:10px; min-width:18px; text-align:center;
+  }
+  .tarefas-chip.active-all .chip-count { background:rgba(255,255,255,0.2); }
+
+  /* SEPARADOR DE SEÇÃO */
+  .tarefa-section-title {
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px;
+    color:var(--ink-muted); padding:4px 0 10px; margin-top:4px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .tarefa-section-title::after {
+    content:''; flex:1; height:1px; background:var(--border);
+  }
+
+  /* SEÇÃO PERSONALIZADO */
+  .tarefa-section-personalizado .tarefa-section-title {
+    color:var(--purple);
+  }
 
   .tarefa-card {
     background:#fff; border:1.5px solid var(--border); border-radius:var(--radius);
@@ -216,12 +263,19 @@
   .tarefa-card:hover { border-color:var(--rose); }
   .tarefa-card.urgente { border-left:4px solid var(--red); }
   .tarefa-card.hoje { border-left:4px solid var(--amber); }
+  .tarefa-card.personalizado { border-left:4px solid var(--purple); }
+  .tarefa-card.personalizado:hover { border-color:var(--purple); }
+  .tarefa-card.personalizado-urgente { border-left:4px solid var(--red); background:#fffaf9; }
+
   .tarefa-dias-badge {
     min-width:52px; height:52px; border-radius:12px; display:flex; flex-direction:column;
     align-items:center; justify-content:center; font-weight:700; flex-shrink:0;
   }
   .tarefa-dias-badge.urgente { background:#fdeaea; color:var(--red); }
   .tarefa-dias-badge.hoje { background:var(--amber-light); color:var(--amber); }
+  .tarefa-dias-badge.personalizado { background:var(--purple-light); color:var(--purple); }
+  .tarefa-dias-badge.personalizado-urgente { background:#fdeaea; color:var(--red); }
+
   .tarefa-dias-num { font-size:20px; line-height:1; }
   .tarefa-dias-label { font-size:9px; text-transform:uppercase; letter-spacing:0.5px; }
   .tarefa-info { flex:1; }
@@ -230,6 +284,18 @@
   .tarefa-meta { display:flex; gap:10px; margin-top:6px; flex-wrap:wrap; }
   .tarefa-chip { font-size:11px; padding:2px 8px; border-radius:4px; font-weight:500; }
   .tarefa-actions { display:flex; gap:8px; flex-shrink:0; }
+
+  /* Badge PERSONALIZADO no produto */
+  .badge-personalizado {
+    display:inline-flex; align-items:center; gap:3px;
+    font-size:10px; font-weight:700; padding:2px 7px; border-radius:4px;
+    background:var(--purple-light); color:var(--purple);
+    text-transform:uppercase; letter-spacing:0.5px;
+  }
+  /* Badge prazo */
+  .badge-prazo-ok { background:var(--green-light); color:var(--green); }
+  .badge-prazo-atencao { background:var(--amber-light); color:#9a5f00; }
+  .badge-prazo-vencido { background:#fdeaea; color:var(--red); }
 
   .tarefas-empty { text-align:center; padding:64px 24px; }
   .tarefas-empty .big-icon { font-size:64px; margin-bottom:16px; }
@@ -403,6 +469,7 @@
     </div>
   </div>
 
+  <!-- TAREFAS DO DIA -->
   <div class="page" id="page-tarefas">
     <div class="tarefas-header">
       <div>
@@ -414,6 +481,27 @@
         <div class="tarefas-count-label">pendente(s)</div>
       </div>
     </div>
+
+    <!-- BARRA DE FILTROS -->
+    <div class="tarefas-filter-bar">
+      <span class="tarefas-filter-label">Filtrar:</span>
+      <button class="tarefas-chip active-all" id="tf-all" onclick="setTarefaFilter('all')">
+        🔍 Todos <span class="chip-count" id="tc-all">0</span>
+      </button>
+      <button class="tarefas-chip" id="tf-pagamentos" onclick="setTarefaFilter('pagamentos')">
+        💳 PG Pendente <span class="chip-count" id="tc-pagamentos">0</span>
+      </button>
+      <button class="tarefas-chip" id="tf-agendadas" onclick="setTarefaFilter('agendadas')">
+        📅 Contas Agendadas <span class="chip-count" id="tc-agendadas">0</span>
+      </button>
+      <button class="tarefas-chip" id="tf-producao" onclick="setTarefaFilter('producao')">
+        ⚙️ Em Produção <span class="chip-count" id="tc-producao">0</span>
+      </button>
+      <button class="tarefas-chip" id="tf-personalizados" onclick="setTarefaFilter('personalizados')">
+        ✏️ Personalizados <span class="chip-count" id="tc-personalizados">0</span>
+      </button>
+    </div>
+
     <div id="tarefasList"></div>
   </div>
 
@@ -764,7 +852,6 @@ function renderPage(p) {
 // ============================================================
 const BRL = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
-// Sempre retorna o dia local atual no formato YYYY-MM-DD para evitar bug de fuso horário
 function today() {
   const t = new Date();
   t.setMinutes(t.getMinutes() - t.getTimezoneOffset());
@@ -817,17 +904,50 @@ function mkChart(id, config) {
   _charts[id] = new Chart(canvas.getContext('2d'), config);
 }
 
+// ============================================================
+// HELPERS DE PERSONALIZADO E DIAS ÚTEIS
+// ============================================================
+
+/** Verifica se um pedido é personalizado pelo campo produto */
+function isPersonalizado(v) {
+  if (!v.produto) return false;
+  const prods = v.produto.toLowerCase();
+  return prods.includes('personaliz') || prods.includes('personalizado') || prods.includes('mascotinho') || prods.includes('realista') || prods.includes('casamento') || prods.includes('debutante');
+}
+
+/** Calcula quantos dias úteis (seg-sex) se passaram desde uma data */
+function calcDiasUteisDesde(dataStr) {
+  if (!dataStr) return 0;
+  const inicio = new Date(dataStr + 'T12:00:00');
+  const fim = new Date(today() + 'T12:00:00');
+  let count = 0;
+  let d = new Date(inicio);
+  d.setDate(d.getDate() + 1); // começa a contar no dia seguinte
+  while (d <= fim) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
+/** Retorna info de prazo para personalizado (3 dias úteis) */
+function infoPrazoPersonalizado(v) {
+  const diasUteis = calcDiasUteisDesde(v.data);
+  const restantes = 3 - diasUteis;
+  if (restantes > 1) return { label: `${restantes} dias úteis`, classe: 'badge-prazo-ok', urgente: false };
+  if (restantes === 1) return { label: '1 dia útil', classe: 'badge-prazo-atencao', urgente: false };
+  if (restantes === 0) return { label: 'Vence hoje!', classe: 'badge-prazo-atencao', urgente: true };
+  return { label: `${Math.abs(restantes)}d útil(s) atrasado`, classe: 'badge-prazo-vencido', urgente: true };
+}
 
 // ============================================================
-// LÓGICA DE DATAS DO CICLO DE REPASSE (Sexta passada a Quinta passada)
+// LÓGICA DE DATAS DO CICLO DE REPASSE
 // ============================================================
 function getCicloRepasse() {
-  const hoje = new Date(today() + 'T12:00:00'); // Fixo no meio do dia local para evitar salto de data
-  const dayOfWeek = hoje.getDay(); // 0:Dom, 1:Seg, 2:Ter, 3:Qua, 4:Qui, 5:Sex, 6:Sab
+  const hoje = new Date(today() + 'T12:00:00');
+  const dayOfWeek = hoje.getDay();
 
-  // Descobre a diferença em dias para a última Quinta-feira
-  // Se hoje é Sexta(5) a Quinta foi ontem (1 dia)
-  // Se hoje é Quinta(4) a Quinta passada foi há 7 dias (pois o ciclo fecha pra sexta)
   let offsetThu = (dayOfWeek >= 4) ? (dayOfWeek - 4) : (dayOfWeek + 3);
   if (dayOfWeek === 4) offsetThu = 7; 
   if (dayOfWeek === 5) offsetThu = 1;
@@ -835,7 +955,6 @@ function getCicloRepasse() {
   let lastThursday = new Date(hoje);
   lastThursday.setDate(hoje.getDate() - offsetThu);
 
-  // A Sexta-feira que iniciou o ciclo é exatamente 6 dias antes dessa Quinta
   let lastFriday = new Date(lastThursday);
   lastFriday.setDate(lastThursday.getDate() - 6);
 
@@ -845,20 +964,17 @@ function getCicloRepasse() {
   };
 }
 
-// Calcula o Lucro (Entradas - Saídas) do Ciclo Específico
 function calcLucroCiclo() {
   const ciclo = getCicloRepasse();
   let entradas = 0;
   let saidas = 0;
 
-  // Soma Entradas das Vendas no período (Sinal pago ou Valor pago final)
   vendas.forEach(v => {
     if (v.status !== 'cancelado' && v.data >= ciclo.inicio && v.data <= ciclo.fim) {
        entradas += (v.status === 'finalizado' ? parseFloat(v.valorPago||0) : parseFloat(v.sinal||0));
     }
   });
 
-  // Soma Entradas Manuais e Saídas do Fluxo de Caixa no período
   fluxo.forEach(f => {
     if (f.data >= ciclo.inicio && f.data <= ciclo.fim && f.status !== 'agendado') {
        if (f.tipo === 'entrada') entradas += f.valor;
@@ -894,7 +1010,7 @@ function renderDashboard() {
   const cacNum = totalPedidos > 0 && marketingGasto > 0 ? (marketingGasto / totalPedidos) : 0;
   
   const aReceber = vm.filter(v => v.status !== 'finalizado' && v.status !== 'cancelado')
-    .reduce((s, v) => s + Math.max((parseFloat(v.valorProd)||0) - (parseFloat(v.sinal)||0), 0), 0);
+    .reduce((s, v) => s + Math.max((parseFloat(v.valorProd)||0) - (parseFloat(v.valorPago)||0), 0), 0);
 
   const diasMes = parseInt(meta.dias) || 31;
   const diaAtual = new Date().getDate();
@@ -1244,7 +1360,6 @@ function renderFluxo() {
     ? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/saídas)*100}%;background:var(--red)"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
     : '<p style="font-size:13px;color:var(--ink-muted)">Sem saídas efetivadas no mês</p>';
 
-  // --- NOVO GRÁFICO E TABELA DE REPASSES BASEADO NO LUCRO DA SEMANA ---
   const ciclo = getCicloRepasse();
   const lucroSemana = calcLucroCiclo();
   const pct = [0.10, 0.09, 0.08, 0.07, 0.47, 0.09, 0.09];
@@ -1406,9 +1521,25 @@ document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click
 
 
 // ============================================================
-// TAREFAS DO DIA (VENDAS, PAGAMENTOS E AUTORIZAÇÃO DE REPASSE)
+// TAREFAS DO DIA
 // ============================================================
 const STATUS_PENDENTES = ['aguardando', 'pg-pendente'];
+let tarefaFiltroAtivo = 'all'; // 'all' | 'pagamentos' | 'agendadas' | 'producao' | 'personalizados'
+
+function setTarefaFilter(f) {
+  tarefaFiltroAtivo = f;
+  // Reset todos os chips
+  ['all','pagamentos','agendadas','producao','personalizados'].forEach(id => {
+    const el = document.getElementById('tf-' + id);
+    if (!el) return;
+    el.className = 'tarefas-chip';
+    if (id === f) {
+      const classMap = { all:'active-all', pagamentos:'active-pagamentos', agendadas:'active-agendadas', producao:'active-producao', personalizados:'active-personalizados' };
+      el.classList.add(classMap[id]);
+    }
+  });
+  renderTarefas();
+}
 
 function getPendentes() {
   const ontem = new Date(); ontem.setDate(ontem.getDate() - 1);
@@ -1424,22 +1555,69 @@ function getPendentesFluxo() {
   return fluxo.filter(f => f.tipo === 'saida' && f.status === 'agendado' && f.data <= hoje);
 }
 
+/** Retorna pedidos em produção com mais de 0 dias de entrada (qualquer em produção) */
+function getProducao() {
+  const ontem = new Date(); ontem.setDate(ontem.getDate() - 1);
+  const ontemStr = ontem.toISOString().split('T')[0];
+  return vendas.filter(v =>
+    statusClass(v.status) === 'producao' &&
+    v.data && v.data <= ontemStr
+  ).sort((a,b) => a.data < b.data ? -1 : 1);
+}
+
+/** Retorna pedidos personalizados com prazo chegando/vencido */
+function getPersonalizadosAlerta() {
+  return vendas.filter(v => {
+    if (v.status === 'cancelado' || v.status === 'finalizado' || v.status === 'enviado') return false;
+    if (!isPersonalizado(v)) return false;
+    if (!v.data) return false;
+    const diasUteis = calcDiasUteisDesde(v.data);
+    return diasUteis >= 2; // alerta a partir de 2 dias úteis (1 dia de folga restante)
+  }).sort((a,b) => {
+    // ordena pelo prazo mais apertado primeiro
+    return calcDiasUteisDesde(b.data) - calcDiasUteisDesde(a.data);
+  });
+}
+
 function updateTarefasBadge() {
-  const vendasP = getPendentes().length;
-  const fluxoP = getPendentesFluxo().length;
-  
-  // Verifica se precisa notificar a autorização de sexta
+  const pgPendente = vendas.filter(v => {
+    const ontem = new Date(); ontem.setDate(ontem.getDate()-1);
+    return statusClass(v.status) === 'pg-pendente' && v.data && v.data <= ontem.toISOString().split('T')[0];
+  }).length;
+  const aguardando = vendas.filter(v => {
+    const ontem = new Date(); ontem.setDate(ontem.getDate()-1);
+    return statusClass(v.status) === 'aguardando' && v.data && v.data <= ontem.toISOString().split('T')[0];
+  }).length;
+  const agendadas = getPendentesFluxo().length;
+  const producao = getProducao().filter(v => !isPersonalizado(v)).length;
+  const personalizados = getPersonalizadosAlerta().length;
+
+  // Badge de autorização de sexta
   let authP = 0;
   const dHoje = new Date(today() + 'T12:00:00');
   const ciclo = getCicloRepasse();
   const repasseKey = 'repasse_autorizado_' + ciclo.fim;
   if (dHoje.getDay() === 5 && !LS.get(repasseKey, false)) authP = 1;
 
-  const count = vendasP + fluxoP + authP;
+  // Total urgente = pg-pendente + aguardando + agendadas + auth
+  const totalUrgente = pgPendente + aguardando + agendadas + authP;
+  const totalGeral = totalUrgente + producao + personalizados;
+
   const badge = document.getElementById('navAlertCount');
   if (!badge) return;
-  badge.textContent = count;
-  badge.style.display = count > 0 ? 'inline-block' : 'none';
+  badge.textContent = totalGeral;
+  badge.style.display = totalGeral > 0 ? 'inline-block' : 'none';
+
+  // Atualiza contadores nos chips
+  const setChipCount = (id, val) => {
+    const el = document.getElementById('tc-' + id);
+    if (el) el.textContent = val;
+  };
+  setChipCount('all', totalGeral);
+  setChipCount('pagamentos', pgPendente);
+  setChipCount('agendadas', agendadas);
+  setChipCount('producao', producao);
+  setChipCount('personalizados', personalizados);
 }
 
 function autorizarRepasses() {
@@ -1483,14 +1661,27 @@ function ignorarRepasse(fimCiclo) {
 }
 
 function renderTarefas() {
-  const vendasLista = getPendentes();
+  const vendasPendentes = getPendentes(); // aguardando + pg-pendente (atrasados)
   const fluxoLista = getPendentesFluxo();
-  
-  updateTarefasBadge();
-  let totalCount = parseInt(document.getElementById('navAlertCount')?.textContent || "0");
-  document.getElementById('tarefasCount').textContent = totalCount;
+  const producaoLista = getProducao().filter(v => !isPersonalizado(v));
+  const personalizadosLista = getPersonalizadosAlerta();
 
-  if (totalCount === 0) {
+  updateTarefasBadge();
+
+  const todayStr = today();
+  const dHoje = new Date(todayStr + 'T12:00:00');
+  const ciclo = getCicloRepasse();
+  const repasseKey = 'repasse_autorizado_' + ciclo.fim;
+  const temRepasseSexta = dHoje.getDay() === 5 && !LS.get(repasseKey, false);
+
+  // Separa pg-pendente de aguardando
+  const pgPendenteLista = vendasPendentes.filter(v => statusClass(v.status) === 'pg-pendente');
+  const aguardandoLista = vendasPendentes.filter(v => statusClass(v.status) === 'aguardando');
+
+  const totalGeral = pgPendenteLista.length + aguardandoLista.length + fluxoLista.length + producaoLista.length + personalizadosLista.length + (temRepasseSexta ? 1 : 0);
+  document.getElementById('tarefasCount').textContent = totalGeral;
+
+  if (totalGeral === 0) {
     document.getElementById('tarefasList').innerHTML = `
       <div class="tarefas-empty">
         <div class="big-icon">🎉</div>
@@ -1500,95 +1691,181 @@ function renderTarefas() {
     return;
   }
 
-  const todayStr = today();
+  const f = tarefaFiltroAtivo;
   let html = '';
 
-  // 1. APROVAÇÃO DE SEXTA-FEIRA
-  const dHoje = new Date(todayStr + 'T12:00:00');
-  const ciclo = getCicloRepasse();
-  const repasseKey = 'repasse_autorizado_' + ciclo.fim;
-  
-  if (dHoje.getDay() === 5 && !LS.get(repasseKey, false)) {
-      const lucroSemana = calcLucroCiclo();
-      const formatoData = (dStr) => dStr.split('-').reverse().join('/');
-      
-      html += `
-        <div class="tarefa-card urgente" style="background:#e0f4ff; border-color:#0284c7;">
-          <div class="tarefa-dias-badge urgente" style="background:#0284c7; color:#fff;">
-            <div class="tarefa-dias-num">💰</div>
-            <div class="tarefa-dias-label" style="font-size:7px;">LUCRO</div>
-          </div>
-          <div class="tarefa-info">
-            <div class="tarefa-contato" style="color:#0284c7; font-size:16px;">Aprovação de Repasses da Semana</div>
-            <div class="tarefa-produto" style="font-weight:500;">Ciclo: ${formatoData(ciclo.inicio)} a ${formatoData(ciclo.fim)}</div>
-            <div class="tarefa-meta">
-              <span class="tarefa-chip" style="background:#fff; color:var(--ink); font-size:13px; font-weight:600; padding:6px 12px; border:1px solid #bae6fd;">Lucro Apurado: ${BRL(lucroSemana)}</span>
-            </div>
-          </div>
-          <div class="tarefa-actions" style="flex-direction:column; align-items:flex-end;">
-            ${lucroSemana > 0
-              ? `<button class="btn btn-primary btn-sm" onclick="autorizarRepasses()" style="background:#0284c7; font-size:12px; padding:8px 16px;">✓ Aprovar e Agendar Pagamentos</button>`
-              : `<span style="font-size:11px; color:var(--ink-muted); font-weight:600; margin-bottom:4px;">Sem lucro para repassar</span>
-                 <button class="btn btn-ghost btn-sm" onclick="ignorarRepasse('${ciclo.fim}')">Dispensar Aviso</button>`
-            }
-          </div>
-        </div>`;
-  }
+  const opts = STATUS_OPTS.map(o=>`<option value="${o.v}">${o.l}</option>`).join('');
 
-  // 2. CONTAS AGENDADAS
-  fluxoLista.forEach(f => {
-    html += `
-      <div class="tarefa-card urgente">
-        <div class="tarefa-dias-badge urgente" style="background:#fff3cd; color:#856404; border: 1px solid #ffeeba;">
-          <div class="tarefa-dias-num">💳</div>
-          <div class="tarefa-dias-label" style="font-size:7px;">PAGAR</div>
-        </div>
-        <div class="tarefa-info">
-          <div class="tarefa-contato">${f.descricao||'Pagamento'}</div>
-          <div class="tarefa-produto" style="font-weight:600; color:var(--red);">Pagamento Agendado</div>
-          <div class="tarefa-meta">
-            <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 Vencimento: ${f.data.split('-').reverse().join('/')}</span>
-            <span class="tarefa-chip" style="background:#fdeaea;color:var(--red)">💰 ${BRL(f.valor)}</span>
-          </div>
-        </div>
-        <div class="tarefa-actions">
-          <button class="btn btn-primary btn-sm" onclick="pagarConta('${f.id}')">✓ Efetivar Pagamento</button>
-        </div>
-      </div>`;
-  });
-
-  // 3. PEDIDOS AGUARDANDO
-  vendasLista.forEach(v => {
+  // ---- HELPER: card de venda ----
+  function cardVenda(v, secaoClasse) {
     const diasAtraso = Math.floor((new Date(todayStr) - new Date(v.data)) / 86400000);
     const isUrgente = diasAtraso >= 2;
-    const badgeClass = isUrgente ? 'urgente' : 'hoje';
-    const cardClass = isUrgente ? 'urgente' : 'hoje';
+    const isProd = statusClass(v.status) === 'producao';
+    const isPers = isPersonalizado(v);
+
+    let cardClass = '', badgeClass = '';
+    if (isPers) {
+      const prazo = infoPrazoPersonalizado(v);
+      cardClass = prazo.urgente ? 'personalizado-urgente' : 'personalizado';
+      badgeClass = prazo.urgente ? 'personalizado-urgente' : 'personalizado';
+    } else if (isProd) {
+      cardClass = 'hoje';
+      badgeClass = 'hoje';
+    } else {
+      cardClass = isUrgente ? 'urgente' : 'hoje';
+      badgeClass = isUrgente ? 'urgente' : 'hoje';
+    }
+
     const restante = (parseFloat(v.valorProd)||0) - (parseFloat(v.valorPago)||0);
-    const opts = STATUS_OPTS.map(o=>`<option value="${o.v}" ${o.v===v.status?'selected':''}>${o.l}</option>`).join('');
-    html += `
+    const optsStatus = STATUS_OPTS.map(o=>`<option value="${o.v}" ${o.v===v.status?'selected':''}>${o.l}</option>`).join('');
+
+    // Badge de personalizado
+    const persTag = isPers ? `<span class="badge-personalizado">✏️ Personalizado</span>` : '';
+
+    // Badge de prazo (só para personalizados)
+    let prazoTag = '';
+    if (isPers) {
+      const prazo = infoPrazoPersonalizado(v);
+      prazoTag = `<span class="tarefa-chip ${prazo.classe}">⏱ Prazo: ${prazo.label}</span>`;
+    }
+
+    // Badge de dias para não-personalizados
+    let diasBadgeContent = '';
+    if (!isPers) {
+      diasBadgeContent = `<div class="tarefa-dias-num">${diasAtraso}</div><div class="tarefa-dias-label">${diasAtraso===1?'dia':'dias'}</div>`;
+    } else {
+      const diasUteis = calcDiasUteisDesde(v.data);
+      diasBadgeContent = `<div class="tarefa-dias-num">${diasUteis}</div><div class="tarefa-dias-label">d.úteis</div>`;
+    }
+
+    return `
       <div class="tarefa-card ${cardClass}">
         <div class="tarefa-dias-badge ${badgeClass}">
-          <div class="tarefa-dias-num">${diasAtraso}</div>
-          <div class="tarefa-dias-label">${diasAtraso===1?'dia':'dias'}</div>
+          ${diasBadgeContent}
         </div>
         <div class="tarefa-info">
-          <div class="tarefa-contato">🛍️ ${v.contato||'—'}</div>
+          <div class="tarefa-contato">🛍️ ${v.contato||'—'} ${persTag}</div>
           <div class="tarefa-produto">${v.produto||'—'}</div>
           <div class="tarefa-meta">
             <span class="tarefa-chip fonte-badge fonte-${fonteClass(v.fonte)}">${v.fonte||'—'}</span>
             <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 ${v.data.split('-').reverse().join('/')}</span>
             <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">💰 ${BRL(v.valorProd)}</span>
             ${restante > 0.01 ? `<span class="tarefa-chip" style="background:#fdeaea;color:var(--red)">Falta ${BRL(restante)}</span>` : ''}
+            ${prazoTag}
           </div>
         </div>
         <div class="tarefa-actions">
           <select class="status-select s-${statusClass(v.status)}" onchange="quickStatusTarefa('${v.id}',this)">
-            ${opts}
+            ${optsStatus}
           </select>
           <button class="btn btn-ghost btn-sm" onclick="editVenda('${v.id}');goTo('vendas')" title="Editar pedido">✏️</button>
         </div>
       </div>`;
-  });
+  }
+
+  const mostrar = (grupo) => f === 'all' || f === grupo;
+
+  // ---- 1. APROVAÇÃO DE SEXTA ----
+  if ((f === 'all' || f === 'agendadas') && temRepasseSexta) {
+    const lucroSemana = calcLucroCiclo();
+    const formatoData = (dStr) => dStr.split('-').reverse().join('/');
+    html += `
+      <div class="tarefas-filter-bar" style="margin-bottom:0; border-radius:var(--radius) var(--radius) 0 0; border-bottom:none; background:#e0f4ff; border-color:#0284c7;">
+        <div class="tarefa-section-title" style="color:#0284c7; margin:0;">💰 Aprovação de Repasse</div>
+      </div>
+      <div class="tarefa-card urgente" style="background:#e0f4ff; border-color:#0284c7; border-radius:0 0 var(--radius) var(--radius); margin-bottom:20px;">
+        <div class="tarefa-dias-badge urgente" style="background:#0284c7; color:#fff;">
+          <div class="tarefa-dias-num">💰</div>
+          <div class="tarefa-dias-label" style="font-size:7px;">LUCRO</div>
+        </div>
+        <div class="tarefa-info">
+          <div class="tarefa-contato" style="color:#0284c7; font-size:16px;">Aprovação de Repasses da Semana</div>
+          <div class="tarefa-produto" style="font-weight:500;">Ciclo: ${formatoData(ciclo.inicio)} a ${formatoData(ciclo.fim)}</div>
+          <div class="tarefa-meta">
+            <span class="tarefa-chip" style="background:#fff; color:var(--ink); font-size:13px; font-weight:600; padding:6px 12px; border:1px solid #bae6fd;">Lucro Apurado: ${BRL(lucroSemana)}</span>
+          </div>
+        </div>
+        <div class="tarefa-actions" style="flex-direction:column; align-items:flex-end;">
+          ${lucroSemana > 0
+            ? `<button class="btn btn-primary btn-sm" onclick="autorizarRepasses()" style="background:#0284c7; font-size:12px; padding:8px 16px;">✓ Aprovar e Agendar Pagamentos</button>`
+            : `<span style="font-size:11px; color:var(--ink-muted); font-weight:600; margin-bottom:4px;">Sem lucro para repassar</span>
+               <button class="btn btn-ghost btn-sm" onclick="ignorarRepasse('${ciclo.fim}')">Dispensar Aviso</button>`
+          }
+        </div>
+      </div>`;
+  }
+
+  // ---- 2. PG PENDENTE ----
+  if (mostrar('pagamentos') && pgPendenteLista.length > 0) {
+    html += `<div class="tarefa-section-title">💳 Pagamento Pendente</div>`;
+    pgPendenteLista.forEach(v => { html += cardVenda(v, 'pagamentos'); });
+  }
+
+  // ---- 3. CONTAS AGENDADAS ----
+  if (mostrar('agendadas') && fluxoLista.length > 0) {
+    html += `<div class="tarefa-section-title">📅 Contas Agendadas</div>`;
+    fluxoLista.forEach(f => {
+      html += `
+        <div class="tarefa-card urgente">
+          <div class="tarefa-dias-badge urgente" style="background:#fff3cd; color:#856404; border: 1px solid #ffeeba;">
+            <div class="tarefa-dias-num">💳</div>
+            <div class="tarefa-dias-label" style="font-size:7px;">PAGAR</div>
+          </div>
+          <div class="tarefa-info">
+            <div class="tarefa-contato">${f.descricao||'Pagamento'}</div>
+            <div class="tarefa-produto" style="font-weight:600; color:var(--red);">Pagamento Agendado</div>
+            <div class="tarefa-meta">
+              <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 Vencimento: ${f.data.split('-').reverse().join('/')}</span>
+              <span class="tarefa-chip" style="background:#fdeaea;color:var(--red)">💰 ${BRL(f.valor)}</span>
+            </div>
+          </div>
+          <div class="tarefa-actions">
+            <button class="btn btn-primary btn-sm" onclick="pagarConta('${f.id}')">✓ Efetivar Pagamento</button>
+          </div>
+        </div>`;
+    });
+  }
+
+  // ---- 4. AGUARDANDO (não-personalizado) ----
+  const aguardandoNormais = aguardandoLista.filter(v => !isPersonalizado(v));
+  if (mostrar('producao') && aguardandoNormais.length > 0) {
+    html += `<div class="tarefa-section-title">⏳ Aguardando Retorno</div>`;
+    aguardandoNormais.forEach(v => { html += cardVenda(v, 'producao'); });
+  }
+
+  // ---- 5. EM PRODUÇÃO (não-personalizado) ----
+  if (mostrar('producao') && producaoLista.length > 0) {
+    html += `<div class="tarefa-section-title">⚙️ Em Produção</div>`;
+    producaoLista.forEach(v => { html += cardVenda(v, 'producao'); });
+  }
+
+  // ---- 6. PERSONALIZADOS (menor prioridade, seção própria) ----
+  const todasPersonalizadas = [
+    ...aguardandoLista.filter(v => isPersonalizado(v)),
+    ...personalizadosLista.filter(v => statusClass(v.status) !== 'aguardando')
+  ].filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i)
+   .sort((a,b) => calcDiasUteisDesde(b.data) - calcDiasUteisDesde(a.data));
+
+  if (mostrar('personalizados') && todasPersonalizadas.length > 0) {
+    html += `
+      <div class="tarefa-section-title" style="color:var(--purple); margin-top:8px;">
+        ✏️ Pedidos Personalizados — Prazo 3 Dias Úteis
+      </div>
+      <div style="background:var(--purple-light); border:1px solid #c4b5fd; border-radius:var(--radius-sm); padding:10px 16px; margin-bottom:14px; font-size:12.5px; color:var(--purple); font-weight:500;">
+        ℹ️ Pedidos personalizados têm prazo de 3 dias úteis. Acompanhe o prazo de cada um abaixo.
+      </div>`;
+    todasPersonalizadas.forEach(v => { html += cardVenda(v, 'personalizados'); });
+  }
+
+  // Se filtro ativo mas sem itens naquela categoria
+  if (f !== 'all' && html.trim() === '') {
+    html = `
+      <div class="tarefas-empty">
+        <div class="big-icon">✅</div>
+        <h3>Tudo em dia aqui!</h3>
+        <p>Nenhum item nesta categoria no momento.</p>
+      </div>`;
+  }
 
   document.getElementById('tarefasList').innerHTML = html;
 }
