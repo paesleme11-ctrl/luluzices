@@ -458,9 +458,16 @@
     </div>
     
     <div class="card" style="margin-bottom:20px;">
-        <div class="card-header"><span class="card-title">Distribuição Ideal de Repasses (Faturamento Mensal)</span></div>
-        <div class="card-body" style="height:260px;position:relative;display:flex;align-items:center;justify-content:center">
-          <canvas id="chartRepasses"></canvas>
+        <div class="card-header"><span class="card-title">Distribuição Ideal de Repasses (Lucro Real da Semana)</span></div>
+        <div class="card-body">
+          <div id="infoCicloRepasse" style="font-size:13px; color:var(--ink-muted); margin-bottom:16px; text-align:center; font-weight:500;"></div>
+          <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:center;">
+            <div style="height:240px; position:relative; flex:1; min-width:240px;">
+              <canvas id="chartRepasses"></canvas>
+            </div>
+            <div id="listaValoresRepasse" style="flex:1; min-width:240px; font-size:13.5px; background:var(--cream); padding:16px 20px; border-radius:12px; border:1px solid var(--border);">
+            </div>
+          </div>
         </div>
     </div>
 
@@ -756,7 +763,14 @@ function renderPage(p) {
 // HELPERS
 // ============================================================
 const BRL = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-const today = () => new Date().toISOString().split('T')[0];
+
+// Sempre retorna o dia local atual no formato YYYY-MM-DD para evitar bug de fuso horário
+function today() {
+  const t = new Date();
+  t.setMinutes(t.getMinutes() - t.getTimezoneOffset());
+  return t.toISOString().split('T')[0];
+}
+
 const getMesAno = () => ({ mes: new Date().getMonth(), ano: new Date().getFullYear() });
 const getMesKey = (mes, ano) => `${ano}-${String(mes+1).padStart(2,'0')}`;
 
@@ -803,8 +817,61 @@ function mkChart(id, config) {
   _charts[id] = new Chart(canvas.getContext('2d'), config);
 }
 
+
 // ============================================================
-// DASHBOARD & LUCRO PROJETADO
+// LÓGICA DE DATAS DO CICLO DE REPASSE (Sexta passada a Quinta passada)
+// ============================================================
+function getCicloRepasse() {
+  const hoje = new Date(today() + 'T12:00:00'); // Fixo no meio do dia local para evitar salto de data
+  const dayOfWeek = hoje.getDay(); // 0:Dom, 1:Seg, 2:Ter, 3:Qua, 4:Qui, 5:Sex, 6:Sab
+
+  // Descobre a diferença em dias para a última Quinta-feira
+  // Se hoje é Sexta(5) a Quinta foi ontem (1 dia)
+  // Se hoje é Quinta(4) a Quinta passada foi há 7 dias (pois o ciclo fecha pra sexta)
+  let offsetThu = (dayOfWeek >= 4) ? (dayOfWeek - 4) : (dayOfWeek + 3);
+  if (dayOfWeek === 4) offsetThu = 7; 
+  if (dayOfWeek === 5) offsetThu = 1;
+
+  let lastThursday = new Date(hoje);
+  lastThursday.setDate(hoje.getDate() - offsetThu);
+
+  // A Sexta-feira que iniciou o ciclo é exatamente 6 dias antes dessa Quinta
+  let lastFriday = new Date(lastThursday);
+  lastFriday.setDate(lastThursday.getDate() - 6);
+
+  return {
+    inicio: lastFriday.toISOString().split('T')[0],
+    fim: lastThursday.toISOString().split('T')[0]
+  };
+}
+
+// Calcula o Lucro (Entradas - Saídas) do Ciclo Específico
+function calcLucroCiclo() {
+  const ciclo = getCicloRepasse();
+  let entradas = 0;
+  let saidas = 0;
+
+  // Soma Entradas das Vendas no período (Sinal pago ou Valor pago final)
+  vendas.forEach(v => {
+    if (v.status !== 'cancelado' && v.data >= ciclo.inicio && v.data <= ciclo.fim) {
+       entradas += (v.status === 'finalizado' ? parseFloat(v.valorPago||0) : parseFloat(v.sinal||0));
+    }
+  });
+
+  // Soma Entradas Manuais e Saídas do Fluxo de Caixa no período
+  fluxo.forEach(f => {
+    if (f.data >= ciclo.inicio && f.data <= ciclo.fim && f.status !== 'agendado') {
+       if (f.tipo === 'entrada') entradas += f.valor;
+       if (f.tipo === 'saida' && f.categoria !== 'repasse') saidas += f.valor;
+    }
+  });
+
+  return entradas - saidas;
+}
+
+
+// ============================================================
+// DASHBOARD
 // ============================================================
 function renderDashboard() {
   const { mes, ano } = getMesAno();
@@ -817,11 +884,8 @@ function renderDashboard() {
   const totalPedidos = getTotalPedidos(vm);
   const vconcluidas = vm.filter(v => v.status === 'finalizado').length;
 
-  // Lógica de cálculo a partir do Fluxo de Caixa Real
   const mesFluxo = fluxo.filter(f => (f.data||'').startsWith(mesKey));
   const despesasAtuais = mesFluxo.filter(f => f.tipo === 'saida' && f.categoria !== 'repasse' && f.status !== 'agendado').reduce((s,f) => s + f.valor, 0);
-  
-  // Capta apenas saídas na categoria "marketing" que já foram pagas
   const marketingGasto = mesFluxo.filter(f => f.tipo === 'saida' && f.categoria === 'marketing' && f.status !== 'agendado').reduce((s,f) => s + f.valor, 0);
 
   const ticket = totalPedidos > 0 ? fatTotal / totalPedidos : 0;
@@ -843,11 +907,9 @@ function renderDashboard() {
   const projecaoDespesa = diaAtual > 0 ? (despesasAtuais / diaAtual) * diasMes : 0;
   const lucroProj = projecao - projecaoDespesa;
 
-  // Badges coloridos dependendo se bateu as novas metas ou não
   const roiColor = roiNum >= (meta.roi || 0) ? 'var(--green)' : (roiNum > 0 ? 'var(--red)' : 'var(--ink-muted)');
   const cacColor = cacNum > 0 && cacNum <= (meta.cac || Infinity) ? 'var(--green)' : (cacNum > 0 ? 'var(--red)' : 'var(--ink-muted)');
 
-  // KPIs
   document.getElementById('kpiGrid').innerHTML = `
     <div class="kpi-card" style="--kpi-color:var(--rose)">
       <div class="kpi-label">Faturamento Mês</div>
@@ -870,7 +932,6 @@ function renderDashboard() {
       <div class="kpi-sub">${vm.filter(v=>v.status!=='finalizado'&&v.status!=='cancelado').length} pedido(s) em aberto</div>
     </div>`;
 
-  // Projeção
   document.getElementById('projecaoVal').textContent = BRL(projecao);
   document.getElementById('projecaoSub').textContent = `Média/dia: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}`;
   document.getElementById('lucroProjVal').textContent = BRL(lucroProj);
@@ -879,7 +940,6 @@ function renderDashboard() {
   document.getElementById('diasPct').textContent = pctDias.toFixed(1) + '%';
   document.getElementById('diasBar').style.width = pctDias + '%';
 
-  // ── GRÁFICO 1: Receita Acumulada vs Meta
   const byDay = {};
   vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.data) return;
@@ -904,7 +964,6 @@ function renderDashboard() {
     options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}} }, scales:{ x:{ticks:{font:{size:10},maxTicksLimit:10}}, y:{ticks:{font:{size:10},callback:v=>'R$'+v.toLocaleString('pt-BR')}} } }
   });
 
-  // ── GRÁFICO 2: Faturamento por Dia
   const dayLabels = Object.keys(byDay).sort();
   const dayValues = dayLabels.map(d => byDay[d]);
   const todayStr = today();
@@ -919,7 +978,6 @@ function renderDashboard() {
     options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:10}}}, y:{ticks:{font:{size:10},callback:v=>'R$'+v}} } }
   });
 
-  // ── GRÁFICO 3: Origem
   const byOrigem = {};
   vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.fonte) return;
@@ -935,7 +993,6 @@ function renderDashboard() {
     options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom',labels:{font:{size:10},boxWidth:10}} } }
   });
 
-  // ── GRÁFICO 4: Top Produtos
   const byProd = {};
   vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.produto) return;
@@ -949,7 +1006,6 @@ function renderDashboard() {
     options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:10},stepSize:1}}, y:{ticks:{font:{size:10}}} } }
   });
 
-  // Recent table
   const recent = [...vm].sort((a,b)=>(b.data||'')>(a.data||'')?1:-1).slice(0,8);
   document.querySelector('#recentTable tbody').innerHTML = recent.length
     ? recent.map(v => `<tr>
@@ -964,9 +1020,8 @@ function renderDashboard() {
     : '<tr><td colspan="7" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma venda no mês</td></tr>';
 }
 
-
 // ============================================================
-// VENDAS E FILTROS MULTI-STATUS
+// VENDAS
 // ============================================================
 let vendaEditId = null;
 let activeStatuses = new Set(); 
@@ -1027,7 +1082,6 @@ function renderVendas() {
 
   let list = vendas.filter(v => {
     if (activeStatuses.size > 0 && !activeStatuses.has(statusClass(v.status))) return false;
-    // Filtro por DIA EXATO (Se vazio, mostra tudo)
     if (dateFilter && v.data !== dateFilter) return false;
     if (q) { const h=[v.contato,v.produto,v.fonte,v.obs].join(' ').toLowerCase(); if (!h.includes(q)) return false; }
     return true;
@@ -1151,7 +1205,7 @@ function saveVenda() {
 }
 
 // ============================================================
-// FLUXO DE CAIXA E REPASSES
+// FLUXO DE CAIXA
 // ============================================================
 function initFluxoMes() {
   const sel = document.getElementById('fluxoMesFilter');
@@ -1172,7 +1226,6 @@ function renderFluxo() {
   const mesKey = document.getElementById('fluxoMesFilter')?.value || getMesKey(getMesAno().mes, getMesAno().ano);
   const mesFluxo = fluxo.filter(f=>(f.data||'').startsWith(mesKey));
   
-  // Apenas soma o que NÃO é agendado
   const mesEfetivado = mesFluxo.filter(f => f.status !== 'agendado');
   const vendasFat = getVendasMes(mesKey).filter(v=>v.status==='finalizado').reduce((s,v)=>s+(parseFloat(v.valorPago)||0),0);
   const entradasManuais = mesEfetivado.filter(f=>f.tipo==='entrada').reduce((s,f)=>s+f.valor,0);
@@ -1191,22 +1244,31 @@ function renderFluxo() {
     ? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/saídas)*100}%;background:var(--red)"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
     : '<p style="font-size:13px;color:var(--ink-muted)">Sem saídas efetivadas no mês</p>';
 
-  // GRÁFICO DE PIZZA - REPASSES DA LU
-  const faturamentoDoMes = getFaturamento(getVendasMes(mesKey));
+  // --- NOVO GRÁFICO E TABELA DE REPASSES BASEADO NO LUCRO DA SEMANA ---
+  const ciclo = getCicloRepasse();
+  const lucroSemana = calcLucroCiclo();
+  const pct = [0.10, 0.09, 0.08, 0.07, 0.47, 0.09, 0.09];
+  const labels = ['Dízimo (10%)', 'Caixa (9%)', 'Reserva (8%)', 'Impostos (7%)', 'Prolabore Conjunto (47%)', 'Lucros Luana (9%)', 'Lucros Gustavo (9%)'];
+  const colors = ['#e8546a', '#3dab7a', '#f0a030', '#4a7fc1', '#a855f7', '#ec4899', '#14b8a6'];
+  const valores = pct.map(p => (lucroSemana > 0 ? lucroSemana : 0) * p);
+
+  const formatoData = (dStr) => dStr.split('-').reverse().join('/');
+  document.getElementById('infoCicloRepasse').innerHTML = `Ciclo apurado: <span style="color:var(--ink);">${formatoData(ciclo.inicio)} a ${formatoData(ciclo.fim)}</span> &nbsp;|&nbsp; Lucro da Semana: <span style="color:var(--green); font-size:16px;">${BRL(lucroSemana)}</span>`;
+
+  document.getElementById('listaValoresRepasse').innerHTML = labels.map((lbl, idx) => `
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--border);">
+          <span style="display:flex; align-items:center; gap:6px;">
+             <span style="width:10px;height:10px;border-radius:50%;background:${colors[idx]};display:inline-block;"></span>
+             ${lbl}
+          </span>
+          <strong style="color:var(--ink)">${BRL(valores[idx])}</strong>
+      </div>
+  `).join('');
+
   mkChart('chartRepasses', {
     type: 'doughnut',
-    data: {
-      labels: ['Dízimo (10%)', 'Caixa (9%)', 'Reserva (8%)', 'Impostos (7%)', 'Prolabore Conjunto (47%)', 'Luana (9%)', 'Gustavo (9%)'],
-      datasets: [{
-        data: [
-          faturamentoDoMes * 0.10, faturamentoDoMes * 0.09, faturamentoDoMes * 0.08, 
-          faturamentoDoMes * 0.07, faturamentoDoMes * 0.47, faturamentoDoMes * 0.09, faturamentoDoMes * 0.09
-        ],
-        backgroundColor: ['#e8546a', '#3dab7a', '#f0a030', '#4a7fc1', '#a855f7', '#ec4899', '#14b8a6'],
-        borderWidth: 2, borderColor:'#fff'
-      }]
-    },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'right',labels:{font:{size:10},boxWidth:10}} } }
+    data: { labels: labels, datasets: [{ data: valores, backgroundColor: colors, borderWidth: 2, borderColor:'#fff' }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} } }
   });
 
   document.getElementById('fluxoBody').innerHTML = [...mesFluxo].sort((a,b)=>(b.data||'')>(a.data||'')?1:-1).map(f=>`
@@ -1260,7 +1322,7 @@ function pagarConta(id) {
 }
 
 // ============================================================
-// METAS (NOVO FORMATO DE CAC E ROI)
+// METAS E CONFIG
 // ============================================================
 function renderMetas() {
   const { mes, ano } = getMesAno();
@@ -1296,9 +1358,6 @@ function saveMeta() {
   save(); saveMetasRemote(); showToast('Metas salvas ✓','success'); renderMetas();
 }
 
-// ============================================================
-// BACKUP & RESTAURAÇÃO
-// ============================================================
 function backupJSON() {
   const data={vendas,fluxo,metas,exportedAt:new Date().toISOString(),version:2};
   const a=document.createElement('a');
@@ -1347,7 +1406,7 @@ document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click
 
 
 // ============================================================
-// TAREFAS DO DIA (VENDAS E PAGAMENTOS AGENDADOS)
+// TAREFAS DO DIA (VENDAS, PAGAMENTOS E AUTORIZAÇÃO DE REPASSE)
 // ============================================================
 const STATUS_PENDENTES = ['aguardando', 'pg-pendente'];
 
@@ -1366,21 +1425,72 @@ function getPendentesFluxo() {
 }
 
 function updateTarefasBadge() {
-  const count = getPendentes().length + getPendentesFluxo().length;
+  const vendasP = getPendentes().length;
+  const fluxoP = getPendentesFluxo().length;
+  
+  // Verifica se precisa notificar a autorização de sexta
+  let authP = 0;
+  const dHoje = new Date(today() + 'T12:00:00');
+  const ciclo = getCicloRepasse();
+  const repasseKey = 'repasse_autorizado_' + ciclo.fim;
+  if (dHoje.getDay() === 5 && !LS.get(repasseKey, false)) authP = 1;
+
+  const count = vendasP + fluxoP + authP;
   const badge = document.getElementById('navAlertCount');
   if (!badge) return;
   badge.textContent = count;
   badge.style.display = count > 0 ? 'inline-block' : 'none';
 }
 
+function autorizarRepasses() {
+   const lucro = calcLucroCiclo();
+   const ciclo = getCicloRepasse();
+   const hojeStr = today();
+   
+   if (lucro <= 0) { showToast('Não há lucro apurado para repassar nesta semana.', 'error'); return; }
+
+   const regras = [
+      { desc: 'Dízimo (10%)', pct: 0.10 },
+      { desc: 'Caixa (9%)', pct: 0.09 },
+      { desc: 'Reserva (8%)', pct: 0.08 },
+      { desc: 'Impostos e Taxas (7%)', pct: 0.07 },
+      { desc: 'Prolabore Conjunto (47%)', pct: 0.47 },
+      { desc: 'Lucros Luana (9%)', pct: 0.09 },
+      { desc: 'Lucros Gustavo (9%)', pct: 0.09 }
+   ];
+
+   regras.forEach(r => {
+     fluxo.push({
+        id: 'rep_' + Date.now().toString() + Math.floor(Math.random()*10000),
+        tipo: 'saida',
+        data: hojeStr,
+        descricao: 'Repasse da Semana - ' + r.desc,
+        valor: lucro * r.pct,
+        categoria: 'repasse',
+        status: 'agendado'
+     });
+   });
+
+   LS.set('repasse_autorizado_' + ciclo.fim, true);
+   save(); if(db) saveFluxoRemote();
+   showToast('Repasses gerados! Eles agora estão nas suas contas agendadas para pagar.', 'success');
+   renderTarefas(); renderFluxo(); renderDashboard();
+}
+
+function ignorarRepasse(fimCiclo) {
+    LS.set('repasse_autorizado_' + fimCiclo, true);
+    renderTarefas();
+}
+
 function renderTarefas() {
   const vendasLista = getPendentes();
   const fluxoLista = getPendentesFluxo();
   
-  document.getElementById('tarefasCount').textContent = vendasLista.length + fluxoLista.length;
   updateTarefasBadge();
+  let totalCount = parseInt(document.getElementById('navAlertCount')?.textContent || "0");
+  document.getElementById('tarefasCount').textContent = totalCount;
 
-  if (!vendasLista.length && !fluxoLista.length) {
+  if (totalCount === 0) {
     document.getElementById('tarefasList').innerHTML = `
       <div class="tarefas-empty">
         <div class="big-icon">🎉</div>
@@ -1393,6 +1503,39 @@ function renderTarefas() {
   const todayStr = today();
   let html = '';
 
+  // 1. APROVAÇÃO DE SEXTA-FEIRA
+  const dHoje = new Date(todayStr + 'T12:00:00');
+  const ciclo = getCicloRepasse();
+  const repasseKey = 'repasse_autorizado_' + ciclo.fim;
+  
+  if (dHoje.getDay() === 5 && !LS.get(repasseKey, false)) {
+      const lucroSemana = calcLucroCiclo();
+      const formatoData = (dStr) => dStr.split('-').reverse().join('/');
+      
+      html += `
+        <div class="tarefa-card urgente" style="background:#e0f4ff; border-color:#0284c7;">
+          <div class="tarefa-dias-badge urgente" style="background:#0284c7; color:#fff;">
+            <div class="tarefa-dias-num">💰</div>
+            <div class="tarefa-dias-label" style="font-size:7px;">LUCRO</div>
+          </div>
+          <div class="tarefa-info">
+            <div class="tarefa-contato" style="color:#0284c7; font-size:16px;">Aprovação de Repasses da Semana</div>
+            <div class="tarefa-produto" style="font-weight:500;">Ciclo: ${formatoData(ciclo.inicio)} a ${formatoData(ciclo.fim)}</div>
+            <div class="tarefa-meta">
+              <span class="tarefa-chip" style="background:#fff; color:var(--ink); font-size:13px; font-weight:600; padding:6px 12px; border:1px solid #bae6fd;">Lucro Apurado: ${BRL(lucroSemana)}</span>
+            </div>
+          </div>
+          <div class="tarefa-actions" style="flex-direction:column; align-items:flex-end;">
+            ${lucroSemana > 0
+              ? `<button class="btn btn-primary btn-sm" onclick="autorizarRepasses()" style="background:#0284c7; font-size:12px; padding:8px 16px;">✓ Aprovar e Agendar Pagamentos</button>`
+              : `<span style="font-size:11px; color:var(--ink-muted); font-weight:600; margin-bottom:4px;">Sem lucro para repassar</span>
+                 <button class="btn btn-ghost btn-sm" onclick="ignorarRepasse('${ciclo.fim}')">Dispensar Aviso</button>`
+            }
+          </div>
+        </div>`;
+  }
+
+  // 2. CONTAS AGENDADAS
   fluxoLista.forEach(f => {
     html += `
       <div class="tarefa-card urgente">
@@ -1404,16 +1547,17 @@ function renderTarefas() {
           <div class="tarefa-contato">${f.descricao||'Pagamento'}</div>
           <div class="tarefa-produto" style="font-weight:600; color:var(--red);">Pagamento Agendado</div>
           <div class="tarefa-meta">
-            <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 Vencimento: ${f.data}</span>
+            <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 Vencimento: ${f.data.split('-').reverse().join('/')}</span>
             <span class="tarefa-chip" style="background:#fdeaea;color:var(--red)">💰 ${BRL(f.valor)}</span>
           </div>
         </div>
         <div class="tarefa-actions">
-          <button class="btn btn-primary btn-sm" onclick="pagarConta('${f.id}')">✓ Pagar Conta</button>
+          <button class="btn btn-primary btn-sm" onclick="pagarConta('${f.id}')">✓ Efetivar Pagamento</button>
         </div>
       </div>`;
   });
 
+  // 3. PEDIDOS AGUARDANDO
   vendasLista.forEach(v => {
     const diasAtraso = Math.floor((new Date(todayStr) - new Date(v.data)) / 86400000);
     const isUrgente = diasAtraso >= 2;
@@ -1432,7 +1576,7 @@ function renderTarefas() {
           <div class="tarefa-produto">${v.produto||'—'}</div>
           <div class="tarefa-meta">
             <span class="tarefa-chip fonte-badge fonte-${fonteClass(v.fonte)}">${v.fonte||'—'}</span>
-            <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 ${v.data}</span>
+            <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 ${v.data.split('-').reverse().join('/')}</span>
             <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">💰 ${BRL(v.valorProd)}</span>
             ${restante > 0.01 ? `<span class="tarefa-chip" style="background:#fdeaea;color:var(--red)">Falta ${BRL(restante)}</span>` : ''}
           </div>
@@ -1456,61 +1600,6 @@ function quickStatusTarefa(id, sel) {
 
 
 // ============================================================
-// GERADOR AUTOMÁTICO DE REPASSES (TODA SEXTA)
-// ============================================================
-function checarERealizarRepasses() {
-  const d = new Date();
-  if (d.getDay() !== 5) return; 
-
-  const todayStr = d.toISOString().split('T')[0];
-  const repasseKey = 'repasse_auto_' + todayStr;
-  
-  if (LS.get(repasseKey, false)) return;
-
-  const lastFriday = new Date();
-  lastFriday.setDate(d.getDate() - 7);
-  const lastStr = lastFriday.toISOString().split('T')[0];
-
-  let fatSemana = 0;
-  vendas.forEach(v => {
-      if (v.status !== 'cancelado' && v.data >= lastStr && v.data < todayStr) {
-          fatSemana += (v.status === 'finalizado' ? parseFloat(v.valorPago||0) : parseFloat(v.sinal||0));
-      }
-  });
-
-  if (fatSemana > 0) {
-      const regras = [
-          { desc: 'Dízimo (10%)', pct: 0.10 },
-          { desc: 'Caixa (9%)', pct: 0.09 },
-          { desc: 'Reserva (8%)', pct: 0.08 },
-          { desc: 'Impostos e Taxas (7%)', pct: 0.07 },
-          { desc: 'Prolabore / Gastos Conjuntos (47%)', pct: 0.47 },
-          { desc: 'Lucros Luana (9%)', pct: 0.09 },
-          { desc: 'Lucros Gustavo (9%)', pct: 0.09 }
-      ];
-      
-      regras.forEach(r => {
-          fluxo.push({
-              id: 'rep_' + Date.now().toString() + Math.floor(Math.random()*1000),
-              tipo: 'saida',
-              data: todayStr,
-              descricao: 'Repasse Automático Semana - ' + r.desc,
-              valor: fatSemana * r.pct,
-              categoria: 'repasse',
-              status: 'pago'
-          });
-      });
-      
-      save();
-      if(db) saveFluxoRemote();
-      showToast('Repasses Automáticos da Semana realizados! 💰', 'success');
-  }
-  
-  LS.set(repasseKey, true);
-}
-
-
-// ============================================================
 // INIT
 // ============================================================
 async function init() {
@@ -1526,8 +1615,6 @@ async function init() {
 
   document.getElementById('fluxoData').value = today();
   
-  checarERealizarRepasses();
-
   updateTarefasBadge();
   renderDashboard();
 }
