@@ -145,11 +145,14 @@
   .projecao-value { font-family:'DM Serif Display',serif; font-size:34px; margin:6px 0; }
   .projecao-sub { font-size:12px; opacity:0.8; }
 
-  .saldo-boxes { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
+  .saldo-boxes { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+  @media (max-width:900px) { .saldo-boxes { grid-template-columns:1fr 1fr; } }
   .saldo-box { padding:16px; border-radius:var(--radius-sm); text-align:center; }
   .saldo-box.entradas { background:var(--green-light); }
   .saldo-box.saidas { background:#fdeaea; }
   .saldo-box.saldo { background:var(--blue-light); }
+  .saldo-box.lucro { background:var(--green-light); }
+  .saldo-box.lucro-neg { background:#fdeaea; }
   .saldo-box .val { font-family:'DM Serif Display',serif; font-size:22px; margin-bottom:2px; }
   .saldo-box.entradas .val { color:var(--green); }
   .saldo-box.saidas .val { color:var(--red); }
@@ -506,6 +509,13 @@
   </div>
 
   <div class="page" id="page-fluxo">
+    <!-- Seletor de mês no topo, afeta tudo na página -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;">
+      <span style="font-size:12px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.8px;">Período:</span>
+      <select id="fluxoMesFilter" onchange="renderFluxo()" style="font-size:13.5px;padding:7px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-weight:500;color:var(--ink);outline:none;cursor:pointer;flex:1;max-width:260px;"></select>
+      <span id="fluxoMesResumoRapido" style="font-size:12px;color:var(--ink-muted);margin-left:auto;"></span>
+    </div>
+
     <div class="saldo-boxes" id="saldoBoxes"></div>
     <div class="grid-2">
       <div class="card">
@@ -546,7 +556,13 @@
     </div>
     
     <div class="card" style="margin-bottom:20px;">
-        <div class="card-header"><span class="card-title">Distribuição Ideal de Repasses (Lucro Real da Semana)</span></div>
+        <div class="card-header">
+          <span class="card-title">Distribuição Ideal de Repasses</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:11px;color:var(--ink-muted);font-weight:600;">Semana:</span>
+            <select id="repasseSemanaFilter" onchange="renderRepasses()" style="font-size:12px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;"></select>
+          </div>
+        </div>
         <div class="card-body">
           <div id="infoCicloRepasse" style="font-size:13px; color:var(--ink-muted); margin-bottom:16px; text-align:center; font-weight:500;"></div>
           <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:center;">
@@ -562,7 +578,7 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Extrato</span>
-        <select id="fluxoMesFilter" onchange="renderFluxo()" style="font-size:12px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif"></select>
+        <span id="extratoMesLabel" style="font-size:12px;color:var(--ink-muted);font-weight:500;"></span>
       </div>
       <div class="table-wrap">
         <table>
@@ -589,9 +605,32 @@
             </div>
             <div class="form-group"><label>Ano</label><input type="number" id="metaAno" value="2026" min="2024" max="2030"></div>
           </div>
+
+          <!-- META DE LUCRO — campo principal -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>🎯 Meta de Lucro Líquido (R$)</label>
+              <input type="number" id="metaLucro" placeholder="Ex: 5000" oninput="calcMetasAutomaticas()">
+              <span style="font-size:11px;color:var(--ink-muted);margin-top:3px;">Preencha o lucro desejado — receita e vendas serão calculadas automaticamente</span>
+            </div>
+          </div>
+
+          <!-- Projeções calculadas automaticamente -->
+          <div id="metaAutoCalc" style="background:var(--cream);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:14px;display:none;">
+            <div style="font-size:11px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;">📐 Projeção Automática</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;" id="metaAutoGrid"></div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--ink-muted);" id="metaAutoBase"></div>
+          </div>
+
           <div class="form-row cols-2">
-            <div class="form-group"><label>Meta de Receita (R$)</label><input type="number" id="metaReceita" placeholder="14300"></div>
-            <div class="form-group"><label>Meta de Vendas (qtd)</label><input type="number" id="metaVendas" placeholder="313"></div>
+            <div class="form-group">
+              <label>Meta de Receita (R$) <span style="color:var(--rose);font-size:10px;">auto</span></label>
+              <input type="number" id="metaReceita" placeholder="Calculado automaticamente">
+            </div>
+            <div class="form-group">
+              <label>Meta de Vendas (qtd) <span style="color:var(--rose);font-size:10px;">auto</span></label>
+              <input type="number" id="metaVendas" placeholder="Calculado automaticamente">
+            </div>
           </div>
           <div class="form-row cols-3">
             <div class="form-group"><label>Meta de ROI (x)</label><input type="number" id="metaROI" placeholder="5" step="0.1"></div>
@@ -1051,6 +1090,15 @@ function renderDashboard() {
   document.getElementById('projecaoVal').textContent = BRL(projecao);
   document.getElementById('projecaoSub').textContent = `Média/dia: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}`;
   document.getElementById('lucroProjVal').textContent = BRL(lucroProj);
+
+  // Indicador de meta de lucro se configurada
+  const metaLucro = meta.lucro || 0;
+  const lucroProjEl = document.getElementById('lucroProjVal');
+  if (lucroProjEl && metaLucro > 0) {
+    const pctLucro = Math.min((lucroProj / metaLucro) * 100, 100);
+    lucroProjEl.insertAdjacentHTML('afterend', `<div style="font-size:11px;opacity:0.85;margin-top:4px;">Meta lucro: ${BRL(metaLucro)} <span style="background:rgba(255,255,255,0.2);padding:1px 6px;border-radius:10px;">${pctLucro.toFixed(0)}%</span></div>`);
+  }
+
   document.getElementById('metaPct').textContent = pctMeta.toFixed(1) + '%';
   document.getElementById('metaBar').style.width = pctMeta + '%';
   document.getElementById('diasPct').textContent = pctDias.toFixed(1) + '%';
@@ -1325,16 +1373,133 @@ function saveVenda() {
 // ============================================================
 function initFluxoMes() {
   const sel = document.getElementById('fluxoMesFilter');
-  if (!sel || sel.options.length > 0) return;
-  const { mes, ano } = getMesAno();
-  for (let m=0;m<12;m++) {
-    const key = getMesKey(m, ano);
-    const label = new Date(ano,m,1).toLocaleDateString('pt-BR',{month:'long'});
-    const opt = document.createElement('option');
-    opt.value = key; opt.textContent = label + ' ' + ano;
-    if (m===mes) opt.selected = true;
-    sel.appendChild(opt);
+  if (!sel) return;
+  // Always rebuild to capture any new months with data
+  const { mes: mesAtual, ano: anoAtual } = getMesAno();
+
+  // Collect all months present in vendas and fluxo
+  const mesesSet = new Set();
+  // Always include current + last 12
+  for (let i = 0; i < 13; i++) {
+    const d = new Date(anoAtual, mesAtual - i, 1);
+    mesesSet.add(getMesKey(d.getMonth(), d.getFullYear()));
   }
+  vendas.forEach(v => { if (v.data) mesesSet.add(v.data.slice(0,7)); });
+  fluxo.forEach(f => { if (f.data) mesesSet.add(f.data.slice(0,7)); });
+
+  const mesesSorted = [...mesesSet].sort().reverse();
+  const currentVal = sel.value || getMesKey(mesAtual, anoAtual);
+
+  sel.innerHTML = '';
+  mesesSorted.forEach(key => {
+    const [y, m] = key.split('-');
+    const label = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = label;
+    if (key === currentVal) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (!sel.value && mesesSorted.length) sel.value = mesesSorted[0];
+}
+
+// ---- SEMANAS DO MÊS PARA REPASSES ----
+function getSemanasDoMes(mesKey) {
+  const [ano, mes] = mesKey.split('-').map(Number);
+  const semanas = [];
+  // Percorre o mês sexta->quinta (lógica igual ao ciclo)
+  const primeiroDia = new Date(ano, mes-1, 1);
+  const ultimoDia = new Date(ano, mes, 0);
+
+  // Gera todas as sextas dentro ou sobrepostas ao mês
+  // Encontra a primeira sexta
+  let d = new Date(primeiroDia);
+  while (d.getDay() !== 5) d.setDate(d.getDate() - 1); // retrocede até sexta anterior
+
+  while (d <= ultimoDia) {
+    const inicio = new Date(d);
+    const fim = new Date(d);
+    fim.setDate(fim.getDate() + 6); // quinta
+
+    const inicioStr = inicio.toISOString().split('T')[0];
+    const fimStr = fim.toISOString().split('T')[0];
+    const fmt = (s) => s.split('-').reverse().join('/');
+
+    semanas.push({
+      inicio: inicioStr,
+      fim: fimStr,
+      label: `${fmt(inicioStr)} → ${fmt(fimStr)}`
+    });
+    d.setDate(d.getDate() + 7);
+  }
+  return semanas;
+}
+
+function calcLucroCicloCustom(inicio, fim) {
+  let entradas = 0, saidas = 0;
+  vendas.forEach(v => {
+    if (v.status !== 'cancelado' && v.data >= inicio && v.data <= fim) {
+      entradas += (v.status === 'finalizado' ? parseFloat(v.valorPago||0) : parseFloat(v.sinal||0));
+    }
+  });
+  fluxo.forEach(f => {
+    if (f.data >= inicio && f.data <= fim && f.status !== 'agendado') {
+      if (f.tipo === 'entrada') entradas += f.valor;
+      if (f.tipo === 'saida' && f.categoria !== 'repasse') saidas += f.valor;
+    }
+  });
+  return entradas - saidas;
+}
+
+function initRepasseSemanas(mesKey) {
+  const sel = document.getElementById('repasseSemanaFilter');
+  if (!sel) return;
+  const semanas = getSemanasDoMes(mesKey);
+  const cicloAtual = getCicloRepasse();
+
+  sel.innerHTML = '';
+  semanas.forEach((s, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = s.label;
+    // Seleciona o ciclo atual por padrão
+    if (s.inicio === cicloAtual.inicio && s.fim === cicloAtual.fim) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  // Se nenhum selecionado, seleciona o último
+  if (!sel.value && semanas.length) sel.value = semanas.length - 1;
+}
+
+function renderRepasses() {
+  const mesKey = document.getElementById('fluxoMesFilter')?.value || getMesKey(getMesAno().mes, getMesAno().ano);
+  const semanas = getSemanasDoMes(mesKey);
+  const idx = parseInt(document.getElementById('repasseSemanaFilter')?.value || 0);
+  const semana = semanas[idx] || semanas[semanas.length - 1];
+  if (!semana) return;
+
+  const lucroSemana = calcLucroCicloCustom(semana.inicio, semana.fim);
+  const pct = [0.10, 0.09, 0.08, 0.07, 0.47, 0.09, 0.09];
+  const labels = ['Dízimo (10%)', 'Caixa (9%)', 'Reserva (8%)', 'Impostos (7%)', 'Prolabore Conjunto (47%)', 'Lucros Luana (9%)', 'Lucros Gustavo (9%)'];
+  const colors = ['#e8546a', '#3dab7a', '#f0a030', '#4a7fc1', '#a855f7', '#ec4899', '#14b8a6'];
+  const valores = pct.map(p => (lucroSemana > 0 ? lucroSemana : 0) * p);
+
+  const fmt = (s) => s.split('-').reverse().join('/');
+  document.getElementById('infoCicloRepasse').innerHTML = `
+    Ciclo: <strong style="color:var(--ink);">${fmt(semana.inicio)} → ${fmt(semana.fim)}</strong>
+    &nbsp;|&nbsp; Lucro da Semana: <span style="color:${lucroSemana >= 0 ? 'var(--green)' : 'var(--red)'}; font-size:16px; font-weight:700;">${BRL(lucroSemana)}</span>`;
+
+  document.getElementById('listaValoresRepasse').innerHTML = labels.map((lbl, i) => `
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+      <span style="display:flex;align-items:center;gap:6px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${colors[i]};display:inline-block;"></span>${lbl}
+      </span>
+      <strong style="color:var(--ink)">${BRL(valores[i])}</strong>
+    </div>`).join('');
+
+  mkChart('chartRepasses', {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: lucroSemana > 0 ? valores : pct.map(()=>1), backgroundColor: colors, borderWidth:2, borderColor:'#fff' }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} } }
+  });
 }
 
 function renderFluxo() {
@@ -1344,15 +1509,28 @@ function renderFluxo() {
   
   const mesEfetivado = mesFluxo.filter(f => f.status !== 'agendado');
   const vendasFat = getVendasMes(mesKey).filter(v=>v.status==='finalizado').reduce((s,v)=>s+(parseFloat(v.valorPago)||0),0);
+  const vendasSinal = getVendasMes(mesKey).filter(v=>v.status!=='finalizado'&&v.status!=='cancelado').reduce((s,v)=>s+(parseFloat(v.sinal)||0),0);
   const entradasManuais = mesEfetivado.filter(f=>f.tipo==='entrada').reduce((s,f)=>s+f.valor,0);
   const saídas = mesEfetivado.filter(f=>f.tipo==='saida').reduce((s,f)=>s+f.valor,0);
   const entradas = vendasFat + entradasManuais;
-  const saldo = entradas - saídas;
+  const lucro = entradas - saídas;
 
+  // Atualiza label do mês no extrato
+  const [yy, mm] = mesKey.split('-');
+  const labelMes = new Date(parseInt(yy), parseInt(mm)-1, 1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const extratoLbl = document.getElementById('extratoMesLabel');
+  if (extratoLbl) extratoLbl.textContent = labelMes;
+
+  // Resumo rápido no seletor de período
+  const resumoEl = document.getElementById('fluxoMesResumoRapido');
+  if (resumoEl) resumoEl.innerHTML = `<span style="color:var(--green);font-weight:600">${BRL(entradas)}</span> <span style="color:var(--ink-muted)">entradas</span> &nbsp;·&nbsp; <span style="color:var(--red);font-weight:600">${BRL(saídas)}</span> <span style="color:var(--ink-muted)">saídas</span> &nbsp;·&nbsp; Lucro: <span style="font-weight:700;color:${lucro >= 0 ? 'var(--green)' : 'var(--red)'}">${BRL(lucro)}</span>`;
+
+  // Saldo boxes com LUCRO incluído
   document.getElementById('saldoBoxes').innerHTML = `
     <div class="saldo-box entradas"><div class="val">${BRL(entradas)}</div><div class="lbl">Entradas Efetivadas</div></div>
     <div class="saldo-box saidas"><div class="val">${BRL(saídas)}</div><div class="lbl">Saídas Efetivadas</div></div>
-    <div class="saldo-box saldo"><div class="val">${BRL(saldo)}</div><div class="lbl">Saldo do Mês</div></div>`;
+    <div class="saldo-box saldo"><div class="val">${BRL(entradas - saídas)}</div><div class="lbl">Saldo do Mês</div></div>
+    <div class="saldo-box" style="background:${lucro>=0?'var(--green-light)':'#fdeaea'};"><div class="val" style="color:${lucro>=0?'var(--green)':'var(--red)'};">${BRL(lucro)}</div><div class="lbl">Lucro Líquido</div></div>`;
 
   const byCat = {};
   mesEfetivado.filter(f=>f.tipo==='saida').forEach(f=>{ byCat[f.categoria]=(byCat[f.categoria]||0)+f.valor; });
@@ -1360,31 +1538,9 @@ function renderFluxo() {
     ? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/saídas)*100}%;background:var(--red)"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
     : '<p style="font-size:13px;color:var(--ink-muted)">Sem saídas efetivadas no mês</p>';
 
-  const ciclo = getCicloRepasse();
-  const lucroSemana = calcLucroCiclo();
-  const pct = [0.10, 0.09, 0.08, 0.07, 0.47, 0.09, 0.09];
-  const labels = ['Dízimo (10%)', 'Caixa (9%)', 'Reserva (8%)', 'Impostos (7%)', 'Prolabore Conjunto (47%)', 'Lucros Luana (9%)', 'Lucros Gustavo (9%)'];
-  const colors = ['#e8546a', '#3dab7a', '#f0a030', '#4a7fc1', '#a855f7', '#ec4899', '#14b8a6'];
-  const valores = pct.map(p => (lucroSemana > 0 ? lucroSemana : 0) * p);
-
-  const formatoData = (dStr) => dStr.split('-').reverse().join('/');
-  document.getElementById('infoCicloRepasse').innerHTML = `Ciclo apurado: <span style="color:var(--ink);">${formatoData(ciclo.inicio)} a ${formatoData(ciclo.fim)}</span> &nbsp;|&nbsp; Lucro da Semana: <span style="color:var(--green); font-size:16px;">${BRL(lucroSemana)}</span>`;
-
-  document.getElementById('listaValoresRepasse').innerHTML = labels.map((lbl, idx) => `
-      <div style="display:flex; justify-content:space-between; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--border);">
-          <span style="display:flex; align-items:center; gap:6px;">
-             <span style="width:10px;height:10px;border-radius:50%;background:${colors[idx]};display:inline-block;"></span>
-             ${lbl}
-          </span>
-          <strong style="color:var(--ink)">${BRL(valores[idx])}</strong>
-      </div>
-  `).join('');
-
-  mkChart('chartRepasses', {
-    type: 'doughnut',
-    data: { labels: labels, datasets: [{ data: valores, backgroundColor: colors, borderWidth: 2, borderColor:'#fff' }] },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} } }
-  });
+  // Init semanas e renderiza repasses
+  initRepasseSemanas(mesKey);
+  renderRepasses();
 
   document.getElementById('fluxoBody').innerHTML = [...mesFluxo].sort((a,b)=>(b.data||'')>(a.data||'')?1:-1).map(f=>`
     <tr>
@@ -1399,7 +1555,7 @@ function renderFluxo() {
       </td>
       <td style="font-weight:600;color:${f.tipo==='entrada'?'var(--green)':'var(--red)'}">${f.tipo==='entrada'?'+':'−'}${BRL(f.valor)}</td>
       <td><button class="btn btn-danger btn-sm" onclick="deleteFluxo('${f.id}')">🗑</button></td>
-    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma transação manual</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma transação neste mês</td></tr>';
 
   if (!document.getElementById('fluxoData').value) document.getElementById('fluxoData').value = today();
 }
@@ -1437,6 +1593,100 @@ function pagarConta(id) {
 }
 
 // ============================================================
+// HELPERS PARA CÁLCULO AUTOMÁTICO DE METAS
+// ============================================================
+
+/** Calcula ticket médio dos últimos N meses */
+function calcTicketMedioUltimos(nMeses) {
+  const { mes, ano } = getMesAno();
+  let totalReceita = 0, totalPedidos = 0;
+  for (let i = 1; i <= nMeses; i++) {
+    const d = new Date(ano, mes - i, 1);
+    const key = getMesKey(d.getMonth(), d.getFullYear());
+    const vm = getVendasMes(key).filter(v => v.status !== 'cancelado');
+    totalReceita += getFaturamento(vm);
+    totalPedidos += getTotalPedidos(vm);
+  }
+  return totalPedidos > 0 ? totalReceita / totalPedidos : 0;
+}
+
+/** Calcula margem de lucro média dos últimos N meses (lucro/receita) */
+function calcMargemLucroUltimos(nMeses) {
+  const { mes, ano } = getMesAno();
+  const margens = [];
+  for (let i = 1; i <= nMeses; i++) {
+    const d = new Date(ano, mes - i, 1);
+    const key = getMesKey(d.getMonth(), d.getFullYear());
+    const fat = getFaturamento(getVendasMes(key));
+    const saidas = fluxo.filter(f => (f.data||'').startsWith(key) && f.tipo === 'saida' && f.status !== 'agendado' && f.categoria !== 'repasse').reduce((s,f)=>s+f.valor,0);
+    if (fat > 0) margens.push((fat - saidas) / fat);
+  }
+  return margens.length > 0 ? margens.reduce((a,b)=>a+b,0)/margens.length : 0.35; // fallback 35%
+}
+
+/** Calcula ROI médio dos últimos N meses */
+function calcROIMedioUltimos(nMeses) {
+  const { mes, ano } = getMesAno();
+  const rois = [];
+  for (let i = 1; i <= nMeses; i++) {
+    const d = new Date(ano, mes - i, 1);
+    const key = getMesKey(d.getMonth(), d.getFullYear());
+    const fat = getFaturamento(getVendasMes(key));
+    const mkt = fluxo.filter(f => (f.data||'').startsWith(key) && f.tipo === 'saida' && f.categoria === 'marketing' && f.status !== 'agendado').reduce((s,f)=>s+f.valor,0);
+    if (fat > 0 && mkt > 0) rois.push(fat / mkt);
+  }
+  return rois.length > 0 ? rois.reduce((a,b)=>a+b,0)/rois.length : 0;
+}
+
+function calcMetasAutomaticas() {
+  const lucroMeta = parseFloat(document.getElementById('metaLucro')?.value) || 0;
+  const box = document.getElementById('metaAutoCalc');
+  const grid = document.getElementById('metaAutoGrid');
+  const base = document.getElementById('metaAutoBase');
+  if (!box || !grid) return;
+
+  if (lucroMeta <= 0) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+
+  const ticket3m = calcTicketMedioUltimos(3);
+  const margem3m = calcMargemLucroUltimos(3);
+  const roi3m = calcROIMedioUltimos(3);
+
+  // Receita necessária = Lucro / Margem
+  const receitaNec = margem3m > 0 ? lucroMeta / margem3m : lucroMeta * 3;
+  // Vendas necessárias = Receita / Ticket
+  const vendasNec = ticket3m > 0 ? Math.ceil(receitaNec / ticket3m) : 0;
+
+  // Preenche os campos automaticamente
+  document.getElementById('metaReceita').value = Math.round(receitaNec);
+  if (vendasNec > 0) document.getElementById('metaVendas').value = vendasNec;
+
+  grid.innerHTML = `
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+      <div style="font-size:10px;color:var(--ink-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Meta de Receita</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--rose);margin-top:2px;">${BRL(receitaNec)}</div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+      <div style="font-size:10px;color:var(--ink-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Meta de Vendas</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--blue);margin-top:2px;">${vendasNec > 0 ? vendasNec + ' pedidos' : '—'}</div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+      <div style="font-size:10px;color:var(--ink-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Margem usada</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--amber);margin-top:2px;">${(margem3m*100).toFixed(1)}%</div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+      <div style="font-size:10px;color:var(--ink-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Ticket médio (3m)</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--green);margin-top:2px;">${ticket3m > 0 ? BRL(ticket3m) : '—'}</div>
+    </div>`;
+
+  const baseParts = [];
+  if (ticket3m > 0) baseParts.push(`Ticket médio dos últimos 3 meses: ${BRL(ticket3m)}`);
+  if (margem3m > 0) baseParts.push(`Margem de lucro média: ${(margem3m*100).toFixed(1)}%`);
+  if (roi3m > 0) baseParts.push(`ROI médio de marketing: ${roi3m.toFixed(1)}x`);
+  base.innerHTML = baseParts.length ? '📊 Base de cálculo: ' + baseParts.join(' · ') : 'ℹ️ Sem histórico suficiente — usando estimativas padrão';
+}
+
+// ============================================================
 // METAS E CONFIG
 // ============================================================
 function renderMetas() {
@@ -1444,18 +1694,23 @@ function renderMetas() {
   document.getElementById('metaMes').value = mes;
   document.getElementById('metaAno').value = ano;
   const m = getMeta();
+  document.getElementById('metaLucro').value = m.lucro||'';
   document.getElementById('metaReceita').value = m.receita||'';
   document.getElementById('metaVendas').value = m.vendas||'';
   document.getElementById('metaROI').value = m.roi||'';
   document.getElementById('metaCAC').value = m.cac||'';
   document.getElementById('metaDias').value = m.dias||31;
 
+  // Recalcula projeção se lucro já preenchido
+  if (m.lucro) setTimeout(calcMetasAutomaticas, 50);
+
   document.getElementById('metasList').innerHTML = Object.entries(metas).sort().reverse().map(([k,m])=>{
     const [y,mo]=k.split('-');
     const label=new Date(parseInt(y),parseInt(mo)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    const lucroLabel = m.lucro ? ` · Meta Lucro: ${BRL(m.lucro)}` : '';
     return `<div style="background:var(--cream);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px">
       <div style="font-weight:600;font-size:14px">${label}</div>
-      <div style="font-size:12px;color:var(--ink-muted);margin-top:4px">Receita: ${BRL(m.receita)} · Vendas: ${m.vendas} · Meta ROI: ${m.roi}x · Meta CAC: ${BRL(m.cac)} · ${m.dias} dias</div>
+      <div style="font-size:12px;color:var(--ink-muted);margin-top:4px">Receita: ${BRL(m.receita)}${lucroLabel} · Vendas: ${m.vendas} · ROI: ${m.roi||'—'}x · CAC: ${BRL(m.cac)} · ${m.dias} dias</div>
     </div>`;
   }).join('') || '<div class="empty-state"><div class="icon">🎯</div><p>Nenhuma meta configurada</p></div>';
 }
@@ -1464,6 +1719,7 @@ function saveMeta() {
   const mes=parseInt(document.getElementById('metaMes').value);
   const ano=parseInt(document.getElementById('metaAno').value);
   metas[getMesKey(mes,ano)]={
+    lucro: parseFloat(document.getElementById('metaLucro').value)||0,
     receita:parseFloat(document.getElementById('metaReceita').value)||0,
     vendas:parseInt(document.getElementById('metaVendas').value)||0,
     roi:parseFloat(document.getElementById('metaROI').value)||0,
@@ -1829,7 +2085,7 @@ function renderTarefas() {
   // ---- 4. AGUARDANDO (não-personalizado) ----
   const aguardandoNormais = aguardandoLista.filter(v => !isPersonalizado(v));
   if (mostrar('producao') && aguardandoNormais.length > 0) {
-    html += `<div class="tarefa-section-title">⏳ Aguardando Produção </div>`;
+    html += `<div class="tarefa-section-title">⏳ Aguardando Retorno</div>`;
     aguardandoNormais.forEach(v => { html += cardVenda(v, 'producao'); });
   }
 
