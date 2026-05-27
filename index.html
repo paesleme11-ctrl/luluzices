@@ -943,6 +943,14 @@ function mkChart(id, config) {
   _charts[id] = new Chart(canvas.getContext('2d'), config);
 }
 
+
+// ============================================================
+// CATEGORIAS DE CUSTO OPERACIONAL
+// Apenas marketing, ferramenta e taxa reduzem o lucro.
+// Saque, repasse, prolabore e outros sao distribuicoes — nao custos.
+// ============================================================
+const CATEGORIAS_CUSTO = ['marketing', 'ferramenta', 'taxa'];
+const isCustoOp = (f) => f.tipo === 'saida' && CATEGORIAS_CUSTO.includes(f.categoria) && f.status !== 'agendado';
 // ============================================================
 // HELPERS DE PERSONALIZADO E DIAS ÚTEIS
 // ============================================================
@@ -1017,7 +1025,7 @@ function calcLucroCiclo() {
   fluxo.forEach(f => {
     if (f.data >= ciclo.inicio && f.data <= ciclo.fim && f.status !== 'agendado') {
        if (f.tipo === 'entrada') entradas += f.valor;
-       if (f.tipo === 'saida' && f.categoria !== 'repasse') saidas += f.valor;
+       if (isCustoOp(f)) saidas += f.valor;
     }
   });
 
@@ -1040,7 +1048,7 @@ function renderDashboard() {
   const vconcluidas = vm.filter(v => v.status === 'finalizado').length;
 
   const mesFluxo = fluxo.filter(f => (f.data||'').startsWith(mesKey));
-  const despesasAtuais = mesFluxo.filter(f => f.tipo === 'saida' && f.categoria !== 'repasse' && f.status !== 'agendado').reduce((s,f) => s + f.valor, 0);
+  const despesasAtuais = mesFluxo.filter(isCustoOp).reduce((s,f) => s + f.valor, 0);
   const marketingGasto = mesFluxo.filter(f => f.tipo === 'saida' && f.categoria === 'marketing' && f.status !== 'agendado').reduce((s,f) => s + f.valor, 0);
 
   const ticket = totalPedidos > 0 ? fatTotal / totalPedidos : 0;
@@ -1444,7 +1452,7 @@ function calcLucroCicloCustom(inicio, fim) {
   fluxo.forEach(f => {
     if (f.data >= inicio && f.data <= fim && f.status !== 'agendado') {
       if (f.tipo === 'entrada') entradas += f.valor;
-      if (f.tipo === 'saida' && f.categoria !== 'repasse') saidas += f.valor;
+      if (isCustoOp(f)) saidas += f.valor;
     }
   });
   return entradas - saidas;
@@ -1511,9 +1519,12 @@ function renderFluxo() {
   const vendasFat = getVendasMes(mesKey).filter(v=>v.status==='finalizado').reduce((s,v)=>s+(parseFloat(v.valorPago)||0),0);
   const vendasSinal = getVendasMes(mesKey).filter(v=>v.status!=='finalizado'&&v.status!=='cancelado').reduce((s,v)=>s+(parseFloat(v.sinal)||0),0);
   const entradasManuais = mesEfetivado.filter(f=>f.tipo==='entrada').reduce((s,f)=>s+f.valor,0);
-  const saídas = mesEfetivado.filter(f=>f.tipo==='saida').reduce((s,f)=>s+f.valor,0);
+  // saídasTotal = tudo que saiu (para exibição no extrato/saldo)
+  const saídasTotal = mesEfetivado.filter(f=>f.tipo==='saida').reduce((s,f)=>s+f.valor,0);
+  // custosOp = apenas marketing, ferramenta e taxa (para calcular lucro real)
+  const custosOp = mesEfetivado.filter(isCustoOp).reduce((s,f)=>s+f.valor,0);
   const entradas = vendasFat + entradasManuais;
-  const lucro = entradas - saídas;
+  const lucro = entradas - custosOp;
 
   // Atualiza label do mês no extrato
   const [yy, mm] = mesKey.split('-');
@@ -1523,19 +1534,19 @@ function renderFluxo() {
 
   // Resumo rápido no seletor de período
   const resumoEl = document.getElementById('fluxoMesResumoRapido');
-  if (resumoEl) resumoEl.innerHTML = `<span style="color:var(--green);font-weight:600">${BRL(entradas)}</span> <span style="color:var(--ink-muted)">entradas</span> &nbsp;·&nbsp; <span style="color:var(--red);font-weight:600">${BRL(saídas)}</span> <span style="color:var(--ink-muted)">saídas</span> &nbsp;·&nbsp; Lucro: <span style="font-weight:700;color:${lucro >= 0 ? 'var(--green)' : 'var(--red)'}">${BRL(lucro)}</span>`;
+  if (resumoEl) resumoEl.innerHTML = `<span style="color:var(--green);font-weight:600">${BRL(entradas)}</span> <span style="color:var(--ink-muted)">entradas</span> &nbsp;·&nbsp; <span style="color:var(--red);font-weight:600">${BRL(saídasTotal)}</span> <span style="color:var(--ink-muted)">saídas</span> &nbsp;·&nbsp; Lucro: <span style="font-weight:700;color:${lucro >= 0 ? 'var(--green)' : 'var(--red)'}">${BRL(lucro)}</span> <span style="color:var(--ink-muted);font-size:11px;">(custos op.)</span>`;
 
   // Saldo boxes com LUCRO incluído
   document.getElementById('saldoBoxes').innerHTML = `
     <div class="saldo-box entradas"><div class="val">${BRL(entradas)}</div><div class="lbl">Entradas Efetivadas</div></div>
-    <div class="saldo-box saidas"><div class="val">${BRL(saídas)}</div><div class="lbl">Saídas Efetivadas</div></div>
-    <div class="saldo-box saldo"><div class="val">${BRL(entradas - saídas)}</div><div class="lbl">Saldo do Mês</div></div>
-    <div class="saldo-box" style="background:${lucro>=0?'var(--green-light)':'#fdeaea'};"><div class="val" style="color:${lucro>=0?'var(--green)':'var(--red)'};">${BRL(lucro)}</div><div class="lbl">Lucro Líquido</div></div>`;
+    <div class="saldo-box saidas"><div class="val">${BRL(saídasTotal)}</div><div class="lbl">Saídas Totais</div></div>
+    <div class="saldo-box saldo"><div class="val">${BRL(entradas - saídasTotal)}</div><div class="lbl">Saldo do Mês</div></div>
+    <div class="saldo-box" style="background:${lucro>=0?'var(--green-light)':'#fdeaea'};"><div class="val" style="color:${lucro>=0?'var(--green)':'var(--red)'};">${BRL(lucro)}</div><div class="lbl" title="Receita − (marketing + ferramentas + taxas)">Lucro Líquido ⓘ</div></div>`;
 
   const byCat = {};
   mesEfetivado.filter(f=>f.tipo==='saida').forEach(f=>{ byCat[f.categoria]=(byCat[f.categoria]||0)+f.valor; });
   document.getElementById('fluxoResumo').innerHTML = Object.entries(byCat).length
-    ? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/saídas)*100}%;background:var(--red)"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
+    ? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/saídasTotal)*100}%;background:var(--red)"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
     : '<p style="font-size:13px;color:var(--ink-muted)">Sem saídas efetivadas no mês</p>';
 
   // Init semanas e renderiza repasses
@@ -1618,10 +1629,10 @@ function calcMargemLucroUltimos(nMeses) {
     const d = new Date(ano, mes - i, 1);
     const key = getMesKey(d.getMonth(), d.getFullYear());
     const fat = getFaturamento(getVendasMes(key));
-    const saidas = fluxo.filter(f => (f.data||'').startsWith(key) && f.tipo === 'saida' && f.status !== 'agendado' && f.categoria !== 'repasse').reduce((s,f)=>s+f.valor,0);
+    const saidas = fluxo.filter(f => (f.data||'').startsWith(key) && isCustoOp(f)).reduce((s,f)=>s+f.valor,0);
     if (fat > 0) margens.push((fat - saidas) / fat);
   }
-  return margens.length > 0 ? margens.reduce((a,b)=>a+b,0)/margens.length : 0.80; // fallback 80%
+  return margens.length > 0 ? margens.reduce((a,b)=>a+b,0)/margens.length : 0; // 0 = sem historico
 }
 
 /** Calcula ROI médio dos últimos N meses */
@@ -1652,14 +1663,21 @@ function calcMetasAutomaticas() {
   const margem3m = calcMargemLucroUltimos(3);
   const roi3m = calcROIMedioUltimos(3);
 
-  // Receita necessária = Lucro / Margem
-  const receitaNec = margem3m > 0 ? lucroMeta / margem3m : lucroMeta * 3;
-  // Vendas necessárias = Receita / Ticket
-  const vendasNec = ticket3m > 0 ? Math.ceil(receitaNec / ticket3m) : 0;
+  // Receita necessária = Lucro / Margem (só calcula se tiver histórico)
+  const receitaNec = margem3m > 0 ? lucroMeta / margem3m : null;
+  const vendasNec = (receitaNec && ticket3m > 0) ? Math.ceil(receitaNec / ticket3m) : 0;
 
-  // Preenche os campos automaticamente
-  document.getElementById('metaReceita').value = Math.round(receitaNec);
+  // Preenche os campos automaticamente (só se calculado)
+  if (receitaNec) document.getElementById('metaReceita').value = Math.round(receitaNec);
   if (vendasNec > 0) document.getElementById('metaVendas').value = vendasNec;
+
+  if (!receitaNec) {
+    grid.innerHTML = `<div style="grid-column:1/-1;background:#fef3dc;border:1px solid var(--amber);border-radius:8px;padding:12px 16px;font-size:13px;color:#7a4f00;">
+      ⚠️ Sem histórico de custos operacionais nos últimos 3 meses. Lance suas despesas de <strong>marketing</strong>, <strong>ferramentas</strong> e <strong>taxas</strong> no Fluxo de Caixa para habilitar o cálculo automático.
+    </div>`;
+    base.innerHTML = 'ℹ️ O cálculo usa apenas custos operacionais reais (marketing, ferramentas, taxas) — não saques nem repasses.';
+    return;
+  }
 
   grid.innerHTML = `
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
@@ -1681,9 +1699,9 @@ function calcMetasAutomaticas() {
 
   const baseParts = [];
   if (ticket3m > 0) baseParts.push(`Ticket médio dos últimos 3 meses: ${BRL(ticket3m)}`);
-  if (margem3m > 0) baseParts.push(`Margem de lucro média: ${(margem3m*100).toFixed(1)}%`);
+  baseParts.push(`Margem de lucro: ${(margem3m*100).toFixed(1)}% (receita − marketing/ferramentas/taxas)`);
   if (roi3m > 0) baseParts.push(`ROI médio de marketing: ${roi3m.toFixed(1)}x`);
-  base.innerHTML = baseParts.length ? '📊 Base de cálculo: ' + baseParts.join(' · ') : 'ℹ️ Sem histórico suficiente — usando estimativas padrão';
+  base.innerHTML = '📊 ' + baseParts.join(' · ');
 }
 
 // ============================================================
