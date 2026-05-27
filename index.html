@@ -1621,7 +1621,7 @@ function calcMargemLucroUltimos(nMeses) {
     const saidas = fluxo.filter(f => (f.data||'').startsWith(key) && f.tipo === 'saida' && f.status !== 'agendado' && f.categoria !== 'repasse').reduce((s,f)=>s+f.valor,0);
     if (fat > 0) margens.push((fat - saidas) / fat);
   }
-  return margens.length > 0 ? margens.reduce((a,b)=>a+b,0)/margens.length : 0.35; // fallback 35%
+  return margens.length > 0 ? margens.reduce((a,b)=>a+b,0)/margens.length : 0.80; // fallback 80%
 }
 
 /** Calcula ROI médio dos últimos N meses */
