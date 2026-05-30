@@ -910,15 +910,37 @@ function getVendasMes(mesKey) {
     const { mes, ano } = getMesAno();
     mesKey = getMesKey(mes, ano);
   }
+  return vendas.filter(v => {
+    if (!v.data) return false;
+    // Pedido criado neste mês
+    if (v.data.startsWith(mesKey)) return true;
+    // OU pedido finalizado neste mês (restante entra neste mês)
+    if (v.status === 'finalizado' && v.dataFinalizacao && v.dataFinalizacao.startsWith(mesKey)) return true;
+    return false;
+  });
+}
+
+// Versão que retorna só pedidos CRIADOS no mês (para contagem de pedidos/ticket)
+function getVendasMesCriados(mesKey) {
+  if (!mesKey) {
+    const { mes, ano } = getMesAno();
+    mesKey = getMesKey(mes, ano);
+  }
   return vendas.filter(v => v.data && v.data.startsWith(mesKey));
 }
 
-function getFaturamento(lista) {
+function getFaturamento(lista, mesKey) {
   return lista
     .filter(v => v.status !== 'cancelado')
     .reduce((s, v) => {
       if (v.status === 'finalizado') {
-        return s + (parseFloat(v.valorPago) || 0);
+        const valorPago = parseFloat(v.valorPago) || 0;
+        const sinal = parseFloat(v.sinal) || 0;
+        // Se o pedido foi criado em outro mês mas finalizado neste, conta só o restante
+        if (mesKey && v.data && !v.data.startsWith(mesKey) && v.dataFinalizacao && v.dataFinalizacao.startsWith(mesKey)) {
+          return s + Math.max(valorPago - sinal, 0);
+        }
+        return s + valorPago;
       } else {
         return s + (parseFloat(v.sinal) || 0);
       }
@@ -1042,10 +1064,11 @@ function renderDashboard() {
   document.getElementById('monthBadge').textContent = new Date(ano, mes, 1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
 
   const meta = getMeta();
-  const vm = getVendasMes(mesKey);
-  const fatTotal = getFaturamento(vm);
-  const totalPedidos = getTotalPedidos(vm);
-  const vconcluidas = vm.filter(v => v.status === 'finalizado').length;
+  const vm = getVendasMes(mesKey);           // inclui finalizados neste mês (para receita)
+  const vmCriados = getVendasMesCriados(mesKey); // só criados neste mês (para contagem/ticket)
+  const fatTotal = getFaturamento(vm, mesKey);
+  const totalPedidos = getTotalPedidos(vmCriados);
+  const vconcluidas = vmCriados.filter(v => v.status === 'finalizado').length;
 
   const mesFluxo = fluxo.filter(f => (f.data||'').startsWith(mesKey));
   const despesasAtuais = mesFluxo.filter(isCustoOp).reduce((s,f) => s + f.valor, 0);
@@ -1056,7 +1079,7 @@ function renderDashboard() {
   const roi = marketingGasto > 0 ? roiNum.toFixed(1) : '∞';
   const cacNum = totalPedidos > 0 && marketingGasto > 0 ? (marketingGasto / totalPedidos) : 0;
   
-  const aReceber = vm.filter(v => v.status !== 'finalizado' && v.status !== 'cancelado')
+  const aReceber = vmCriados.filter(v => v.status !== 'finalizado' && v.status !== 'cancelado')
     .reduce((s, v) => s + Math.max((parseFloat(v.valorProd)||0) - (parseFloat(v.valorPago)||0), 0), 0);
 
   const diasMes = parseInt(meta.dias) || 31;
@@ -1092,7 +1115,7 @@ function renderDashboard() {
     <div class="kpi-card" style="--kpi-color:var(--blue)">
       <div class="kpi-label">A Receber</div>
       <div class="kpi-value">${BRL(aReceber)}</div>
-      <div class="kpi-sub">${vm.filter(v=>v.status!=='finalizado'&&v.status!=='cancelado').length} pedido(s) em aberto</div>
+      <div class="kpi-sub">${vmCriados.filter(v=>v.status!=='finalizado'&&v.status!=='cancelado').length} pedido(s) em aberto</div>
     </div>`;
 
   document.getElementById('projecaoVal').textContent = BRL(projecao);
@@ -1112,11 +1135,23 @@ function renderDashboard() {
   document.getElementById('diasPct').textContent = pctDias.toFixed(1) + '%';
   document.getElementById('diasBar').style.width = pctDias + '%';
 
+  // byDay: sinal conta na data do pedido; restante (valorPago - sinal) conta na dataFinalizacao
   const byDay = {};
   vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.data) return;
-    const val = v.status === 'finalizado' ? (parseFloat(v.valorPago)||0) : (parseFloat(v.sinal)||0);
-    byDay[v.data] = (byDay[v.data]||0) + val;
+    const sinal = parseFloat(v.sinal) || 0;
+    if (v.status === 'finalizado') {
+      const valorPago = parseFloat(v.valorPago) || 0;
+      const restante = Math.max(valorPago - sinal, 0);
+      // Sinal: na data do pedido
+      byDay[v.data] = (byDay[v.data] || 0) + sinal;
+      // Restante: na dataFinalizacao (ou na data do pedido se não tiver)
+      const dataFin = v.dataFinalizacao || v.data;
+      byDay[dataFin] = (byDay[dataFin] || 0) + restante;
+    } else {
+      // Não finalizado: só conta sinal, na data do pedido
+      byDay[v.data] = (byDay[v.data] || 0) + sinal;
+    }
   });
   const days = Array.from({length: diasMes}, (_,i) => `${ano}-${String(mes+1).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`);
   const metaDiaria = (meta.receita||0) / diasMes;
@@ -1222,8 +1257,13 @@ function statusSelectHtml(id, current) {
 function quickStatus(id, sel) {
   const v = vendas.find(x=>x.id===id);
   if (!v) return;
+  const eraFinalizado = v.status === 'finalizado';
   v.status = sel.value;
-  if (v.status === 'finalizado' && (!v.valorPago || parseFloat(v.valorPago) < parseFloat(v.valorProd))) { v.valorPago = v.valorProd; }
+  if (v.status === 'finalizado') {
+    if (!v.valorPago || parseFloat(v.valorPago) < parseFloat(v.valorProd)) { v.valorPago = v.valorProd; }
+    // Grava dataFinalizacao automaticamente (apenas na primeira vez)
+    if (!eraFinalizado && !v.dataFinalizacao) v.dataFinalizacao = today();
+  }
   sel.className = `status-select s-${statusClass(sel.value)}`;
   save(); saveVendaRemote(v);
   updateTarefasBadge();
@@ -1362,11 +1402,18 @@ function saveVenda() {
   const valorPagoInput = parseFloat(document.getElementById('vValorPago').value)||0;
   const valorPago = status === 'finalizado' ? (valorPagoInput > 0 ? valorPagoInput : valorProd) : valorPagoInput;
 
+  // Preserva dataFinalizacao existente ao editar
+  const existing = vendaEditId ? vendas.find(x => x.id === vendaEditId) : null;
+  const dataFinalizacao = status === 'finalizado'
+    ? (existing?.dataFinalizacao || today())  // mantém a original se já tinha
+    : null;
+
   const v = {
     id: vendaEditId || Date.now().toString(), status, data: document.getElementById('vData').value,
     contato: document.getElementById('vContato').value.trim(), fonte: document.getElementById('vFonte').value,
     valorProd, produto: document.getElementById('vProduto').value.trim(), sinal: parseFloat(document.getElementById('vSinal').value)||0,
     valorPago, obs: document.getElementById('vObs').value.trim(),
+    ...(dataFinalizacao ? { dataFinalizacao } : {}),
   };
   if (!v.contato) { showToast('Preencha o contato','error'); return; }
   if (!v.data) { showToast('Preencha a data','error'); return; }
@@ -1516,8 +1563,8 @@ function renderFluxo() {
   const mesFluxo = fluxo.filter(f=>(f.data||'').startsWith(mesKey));
   
   const mesEfetivado = mesFluxo.filter(f => f.status !== 'agendado');
-  const vendasFat = getVendasMes(mesKey).filter(v=>v.status==='finalizado').reduce((s,v)=>s+(parseFloat(v.valorPago)||0),0);
-  const vendasSinal = getVendasMes(mesKey).filter(v=>v.status!=='finalizado'&&v.status!=='cancelado').reduce((s,v)=>s+(parseFloat(v.sinal)||0),0);
+  // Usa getFaturamento com mesKey para tratar corretamente finalizações cross-mês
+  const vendasFat = getFaturamento(getVendasMes(mesKey), mesKey);
   const entradasManuais = mesEfetivado.filter(f=>f.tipo==='entrada').reduce((s,f)=>s+f.valor,0);
   // saídasTotal = tudo que saiu (para exibição no extrato/saldo)
   const saídasTotal = mesEfetivado.filter(f=>f.tipo==='saida').reduce((s,f)=>s+f.valor,0);
@@ -1615,8 +1662,8 @@ function calcTicketMedioUltimos(nMeses) {
     const d = new Date(ano, mes - i, 1);
     const key = getMesKey(d.getMonth(), d.getFullYear());
     const vm = getVendasMes(key).filter(v => v.status !== 'cancelado');
-    totalReceita += getFaturamento(vm);
-    totalPedidos += getTotalPedidos(vm);
+    totalReceita += getFaturamento(vm, key);
+    totalPedidos += getTotalPedidos(getVendasMesCriados(key).filter(v => v.status !== 'cancelado'));
   }
   return totalPedidos > 0 ? totalReceita / totalPedidos : 0;
 }
@@ -1628,7 +1675,7 @@ function calcMargemLucroUltimos(nMeses) {
   for (let i = 1; i <= nMeses; i++) {
     const d = new Date(ano, mes - i, 1);
     const key = getMesKey(d.getMonth(), d.getFullYear());
-    const fat = getFaturamento(getVendasMes(key));
+    const fat = getFaturamento(getVendasMes(key), key);
     const saidas = fluxo.filter(f => (f.data||'').startsWith(key) && isCustoOp(f)).reduce((s,f)=>s+f.valor,0);
     if (fat > 0) margens.push((fat - saidas) / fat);
   }
@@ -1642,7 +1689,7 @@ function calcROIMedioUltimos(nMeses) {
   for (let i = 1; i <= nMeses; i++) {
     const d = new Date(ano, mes - i, 1);
     const key = getMesKey(d.getMonth(), d.getFullYear());
-    const fat = getFaturamento(getVendasMes(key));
+    const fat = getFaturamento(getVendasMes(key), key);
     const mkt = fluxo.filter(f => (f.data||'').startsWith(key) && f.tipo === 'saida' && f.categoria === 'marketing' && f.status !== 'agendado').reduce((s,f)=>s+f.valor,0);
     if (fat > 0 && mkt > 0) rois.push(fat / mkt);
   }
