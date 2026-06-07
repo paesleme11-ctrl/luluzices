@@ -309,6 +309,20 @@
   .nav-alert { background:var(--red); color:#fff; font-size:10px; font-weight:700; padding:1px 6px; border-radius:10px; margin-left:auto; }
 
   @media (max-width:1100px) { .kpi-grid { grid-template-columns:repeat(2,1fr); } }
+
+  /* OCULTAR VALORES */
+  body.valores-ocultos .val-money { filter: blur(6px); user-select:none; pointer-events:none; transition:filter 0.2s; }
+  body.valores-ocultos .val-money:hover { filter: blur(6px); }
+  .btn-eye { font-size:16px; padding:7px 10px; line-height:1; }
+
+  /* PG PENDENTE AUTOMÁTICO (badge no card enviado) */
+  .badge-pg-pendente-auto {
+    display:inline-flex; align-items:center; gap:3px;
+    font-size:10px; font-weight:700; padding:2px 7px; border-radius:4px;
+    background:#fdeaea; color:var(--red);
+    text-transform:uppercase; letter-spacing:0.5px; animation: pulse-red 1.5s infinite;
+  }
+  @keyframes pulse-red { 0%,100%{opacity:1} 50%{opacity:0.6} }
 /* --- AJUSTE RESPONSIVO DO MENU --- */
 @media (max-width: 768px) {
   #menuToggle { display: block !important; }
@@ -363,6 +377,7 @@
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="topbar-right">
       <span id="fbStatus" style="display:none;font-size:12px;color:var(--amber);font-weight:500;padding:4px 10px;background:var(--amber-light);border-radius:20px"></span>
+      <button class="btn btn-ghost btn-sm btn-eye" id="btnOcultarValores" onclick="toggleOcultarValores()" title="Ocultar/mostrar valores">👁</button>
       <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV</button>
       <button class="btn btn-ghost btn-sm" onclick="backupJSON()">💾 Backup</button>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer">
@@ -455,7 +470,6 @@
       <span class="filter-chip" data-val="enviado" onclick="setFilter(this)">📨 Enviado</span>
       <span class="filter-chip" data-val="producao" onclick="setFilter(this)">⚙️ Produção</span>
       <span class="filter-chip" data-val="aguardando" onclick="setFilter(this)">⏳ Aguardando</span>
-      <span class="filter-chip" data-val="pg-pendente" onclick="setFilter(this)">💳 PG Pendente</span>
       <span class="filter-chip" data-val="aguardando-info" onclick="setFilter(this)">❓ Ag. Info</span>
       <span class="filter-chip" data-val="cancelado" onclick="setFilter(this)">❌ Cancelado</span>
     </div>
@@ -662,7 +676,6 @@
             <option value="enviado">📨 Enviado</option>
             <option value="producao">⚙️ Produção</option>
             <option value="aguardando">⏳ Aguardando</option>
-            <option value="pg-pendente">💳 PG Pendente</option>
             <option value="aguardando-info">❓ Ag. Informação</option>
             <option value="cancelado">❌ Cancelado</option>
           </select>
@@ -889,7 +902,8 @@ function renderPage(p) {
 // ============================================================
 // HELPERS
 // ============================================================
-const BRL = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const BRL_RAW = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const BRL = v => `<span class="val-money">${BRL_RAW(v)}</span>`;
 
 function today() {
   const t = new Date();
@@ -1118,9 +1132,9 @@ function renderDashboard() {
       <div class="kpi-sub">${vmCriados.filter(v=>v.status!=='finalizado'&&v.status!=='cancelado').length} pedido(s) em aberto</div>
     </div>`;
 
-  document.getElementById('projecaoVal').textContent = BRL(projecao);
+  document.getElementById('projecaoVal').innerHTML = BRL(projecao);
   document.getElementById('projecaoSub').textContent = `Média/dia: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}`;
-  document.getElementById('lucroProjVal').textContent = BRL(lucroProj);
+  document.getElementById('lucroProjVal').innerHTML = BRL(lucroProj);
 
   // Indicador de meta de lucro se configurada
   const metaLucro = meta.lucro || 0;
@@ -1240,7 +1254,6 @@ const STATUS_OPTS = [
   {v:'enviado',l:'📨 Enviado'},
   {v:'producao',l:'⚙️ Produção'},
   {v:'aguardando',l:'⏳ Aguardando'},
-  {v:'pg-pendente',l:'💳 PG Pendente'},
   {v:'aguardando-info',l:'❓ Ag. Informação'},
   {v:'cancelado',l:'❌ Cancelado'},
 ];
@@ -1259,15 +1272,28 @@ function quickStatus(id, sel) {
   if (!v) return;
   const eraFinalizado = v.status === 'finalizado';
   v.status = sel.value;
+
+  // Ao marcar como Enviado: se já pagou tudo, finaliza automaticamente
+  if (v.status === 'enviado') {
+    const pago = parseFloat(v.valorPago) || 0;
+    const prod = parseFloat(v.valorProd) || 0;
+    if (prod > 0 && pago >= prod) {
+      v.status = 'finalizado';
+      if (!v.dataFinalizacao) v.dataFinalizacao = today();
+      sel.value = 'finalizado';
+      showToast('Pago integral — finalizado automaticamente ✓', 'success');
+    }
+  }
+
   if (v.status === 'finalizado') {
     if (!v.valorPago || parseFloat(v.valorPago) < parseFloat(v.valorProd)) { v.valorPago = v.valorProd; }
-    // Grava dataFinalizacao automaticamente (apenas na primeira vez)
     if (!eraFinalizado && !v.dataFinalizacao) v.dataFinalizacao = today();
   }
+
   sel.className = `status-select s-${statusClass(sel.value)}`;
   save(); saveVendaRemote(v);
   updateTarefasBadge();
-  showToast('Status atualizado ✓','success');
+  if (v.status !== 'finalizado') showToast('Status atualizado ✓','success');
 }
 
 function rowHtml(v) {
@@ -1404,12 +1430,18 @@ function saveVenda() {
 
   // Preserva dataFinalizacao existente ao editar
   const existing = vendaEditId ? vendas.find(x => x.id === vendaEditId) : null;
-  const dataFinalizacao = status === 'finalizado'
-    ? (existing?.dataFinalizacao || today())  // mantém a original se já tinha
+  // Auto-finalizar: se enviado e pagamento total, muda para finalizado
+  let statusFinal = status;
+  if (status === 'enviado') {
+    const pago = parseFloat(document.getElementById('vValorPago').value) || 0;
+    if (valorProd > 0 && pago >= valorProd) { statusFinal = 'finalizado'; }
+  }
+  const dataFinalizacao = statusFinal === 'finalizado'
+    ? (existing?.dataFinalizacao || today())
     : null;
 
   const v = {
-    id: vendaEditId || Date.now().toString(), status, data: document.getElementById('vData').value,
+    id: vendaEditId || Date.now().toString(), status: statusFinal, data: document.getElementById('vData').value,
     contato: document.getElementById('vContato').value.trim(), fonte: document.getElementById('vFonte').value,
     valorProd, produto: document.getElementById('vProduto').value.trim(), sinal: parseFloat(document.getElementById('vSinal').value)||0,
     valorPago, obs: document.getElementById('vObs').value.trim(),
@@ -1838,13 +1870,31 @@ function exportCSV() {
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('open'); vendaEditId=null; }
+
+// ============================================================
+// OCULTAR VALORES
+// ============================================================
+function toggleOcultarValores() {
+  const oculto = document.body.classList.toggle('valores-ocultos');
+  LS.set('valoresOcultos', oculto);
+  document.getElementById('btnOcultarValores').textContent = oculto ? '🙈' : '👁';
+  document.getElementById('btnOcultarValores').title = oculto ? 'Mostrar valores' : 'Ocultar valores';
+}
+
+function initOcultarValores() {
+  if (LS.get('valoresOcultos', false)) {
+    document.body.classList.add('valores-ocultos');
+    const btn = document.getElementById('btnOcultarValores');
+    if (btn) { btn.textContent = '🙈'; btn.title = 'Mostrar valores'; }
+  }
+}
 document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id);}));
 
 
 // ============================================================
 // TAREFAS DO DIA
 // ============================================================
-const STATUS_PENDENTES = ['aguardando', 'pg-pendente'];
+const STATUS_PENDENTES = ['aguardando'];
 let tarefaFiltroAtivo = 'all'; // 'all' | 'pagamentos' | 'agendadas' | 'producao' | 'personalizados'
 
 function setTarefaFilter(f) {
@@ -1868,7 +1918,17 @@ function getPendentes() {
   return vendas.filter(v =>
     STATUS_PENDENTES.includes(statusClass(v.status)) &&
     v.data && v.data <= ontemStr
-  ).sort((a,b) => a.data < b.data ? -1 : 1); 
+  ).sort((a,b) => a.data < b.data ? -1 : 1);
+}
+
+// Pedidos "Enviado" há 1+ dia sem finalizar = PG pendente automático
+function getEnviadosPgPendente() {
+  const ontem = new Date(); ontem.setDate(ontem.getDate() - 1);
+  const ontemStr = ontem.toISOString().split('T')[0];
+  return vendas.filter(v =>
+    statusClass(v.status) === 'enviado' &&
+    v.data && v.data <= ontemStr
+  ).sort((a,b) => a.data < b.data ? -1 : 1);
 }
 
 function getPendentesFluxo() {
@@ -1901,10 +1961,7 @@ function getPersonalizadosAlerta() {
 }
 
 function updateTarefasBadge() {
-  const pgPendente = vendas.filter(v => {
-    const ontem = new Date(); ontem.setDate(ontem.getDate()-1);
-    return statusClass(v.status) === 'pg-pendente' && v.data && v.data <= ontem.toISOString().split('T')[0];
-  }).length;
+  const pgPendente = getEnviadosPgPendente().length;
   const aguardando = vendas.filter(v => {
     const ontem = new Date(); ontem.setDate(ontem.getDate()-1);
     return statusClass(v.status) === 'aguardando' && v.data && v.data <= ontem.toISOString().split('T')[0];
@@ -1995,9 +2052,9 @@ function renderTarefas() {
   const repasseKey = 'repasse_autorizado_' + ciclo.fim;
   const temRepasseSexta = dHoje.getDay() === 5 && !LS.get(repasseKey, false);
 
-  // Separa pg-pendente de aguardando
-  const pgPendenteLista = vendasPendentes.filter(v => statusClass(v.status) === 'pg-pendente');
-  const aguardandoLista = vendasPendentes.filter(v => statusClass(v.status) === 'aguardando');
+  // PG Pendente automático = enviados há 1+ dia sem finalizar
+  const pgPendenteLista = getEnviadosPgPendente();
+  const aguardandoLista = vendasPendentes; // só aguardando agora
 
   const totalGeral = pgPendenteLista.length + aguardandoLista.length + fluxoLista.length + producaoLista.length + personalizadosLista.length + (temRepasseSexta ? 1 : 0);
   document.getElementById('tarefasCount').textContent = totalGeral;
@@ -2042,6 +2099,9 @@ function renderTarefas() {
 
     // Badge de personalizado
     const persTag = isPers ? `<span class="badge-personalizado">✏️ Personalizado</span>` : '';
+    // Badge PG Pendente automático (enviado sem finalizar)
+    const pgPendAuto = (statusClass(v.status) === 'enviado' && secaoClasse === 'pagamentos')
+      ? `<span class="badge-pg-pendente-auto">💳 PG Pendente</span>` : '';
 
     // Badge de prazo (só para personalizados)
     let prazoTag = '';
@@ -2065,7 +2125,7 @@ function renderTarefas() {
           ${diasBadgeContent}
         </div>
         <div class="tarefa-info">
-          <div class="tarefa-contato">🛍️ ${v.contato||'—'} ${persTag}</div>
+          <div class="tarefa-contato">🛍️ ${v.contato||'—'} ${persTag}${pgPendAuto}</div>
           <div class="tarefa-produto">${v.produto||'—'}</div>
           <div class="tarefa-meta">
             <span class="tarefa-chip fonte-badge fonte-${fonteClass(v.fonte)}">${v.fonte||'—'}</span>
@@ -2118,7 +2178,7 @@ function renderTarefas() {
 
   // ---- 2. PG PENDENTE ----
   if (mostrar('pagamentos') && pgPendenteLista.length > 0) {
-    html += `<div class="tarefa-section-title">💳 Pagamento Pendente</div>`;
+    html += `<div class="tarefa-section-title">💳 PG Pendente — Enviado sem Finalizar</div>`;
     pgPendenteLista.forEach(v => { html += cardVenda(v, 'pagamentos'); });
   }
 
@@ -2214,6 +2274,7 @@ async function init() {
   document.getElementById('fluxoData').value = today();
   
   updateTarefasBadge();
+  initOcultarValores();
   renderDashboard();
 }
 
