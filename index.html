@@ -315,6 +315,20 @@
   body.valores-ocultos .val-money:hover { filter: blur(6px); }
   .btn-eye { font-size:16px; padding:7px 10px; line-height:1; }
 
+  /* SELEÇÃO EM MASSA */
+  .tarefa-card.selecionado { background: #f0f7ff; border-color: var(--blue) !important; }
+  .tarefa-checkbox { width:18px; height:18px; cursor:pointer; accent-color:var(--blue); flex-shrink:0; }
+  .massa-toolbar {
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    background:var(--blue-light); border:1.5px solid var(--blue); border-radius:var(--radius);
+    padding:12px 18px; margin-bottom:14px;
+  }
+  .massa-toolbar .count { font-size:13px; font-weight:600; color:var(--blue); flex:1; }
+  .btn-massa { background:var(--green); color:#fff; border:none; padding:8px 18px; border-radius:var(--radius-sm); font-size:13px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .btn-massa:hover { background:#2d9468; }
+  .btn-massa-cancel { background:transparent; color:var(--ink-muted); border:1.5px solid var(--border); padding:7px 14px; border-radius:var(--radius-sm); font-size:12.5px; font-weight:500; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .btn-select-all { background:transparent; color:var(--blue); border:1.5px solid var(--blue); padding:6px 12px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
+
   /* PG PENDENTE AUTOMÁTICO (badge no card enviado) */
   .badge-pg-pendente-auto {
     display:inline-flex; align-items:center; gap:3px;
@@ -569,25 +583,7 @@
       </div>
     </div>
     
-    <div class="card" style="margin-bottom:20px;">
-        <div class="card-header">
-          <span class="card-title">Distribuição Ideal de Repasses</span>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:11px;color:var(--ink-muted);font-weight:600;">Semana:</span>
-            <select id="repasseSemanaFilter" onchange="renderRepasses()" style="font-size:12px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;"></select>
-          </div>
-        </div>
-        <div class="card-body">
-          <div id="infoCicloRepasse" style="font-size:13px; color:var(--ink-muted); margin-bottom:16px; text-align:center; font-weight:500;"></div>
-          <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:center;">
-            <div style="height:240px; position:relative; flex:1; min-width:240px;">
-              <canvas id="chartRepasses"></canvas>
-            </div>
-            <div id="listaValoresRepasse" style="flex:1; min-width:240px; font-size:13.5px; background:var(--cream); padding:16px 20px; border-radius:12px; border:1px solid var(--border);">
-            </div>
-          </div>
-        </div>
-    </div>
+
 
     <div class="card">
       <div class="card-header">
@@ -1489,105 +1485,9 @@ function initFluxoMes() {
   if (!sel.value && mesesSorted.length) sel.value = mesesSorted[0];
 }
 
-// ---- SEMANAS DO MÊS PARA REPASSES ----
-function getSemanasDoMes(mesKey) {
-  const [ano, mes] = mesKey.split('-').map(Number);
-  const semanas = [];
-  // Percorre o mês sexta->quinta (lógica igual ao ciclo)
-  const primeiroDia = new Date(ano, mes-1, 1);
-  const ultimoDia = new Date(ano, mes, 0);
 
-  // Gera todas as sextas dentro ou sobrepostas ao mês
-  // Encontra a primeira sexta
-  let d = new Date(primeiroDia);
-  while (d.getDay() !== 5) d.setDate(d.getDate() - 1); // retrocede até sexta anterior
 
-  while (d <= ultimoDia) {
-    const inicio = new Date(d);
-    const fim = new Date(d);
-    fim.setDate(fim.getDate() + 6); // quinta
 
-    const inicioStr = inicio.toISOString().split('T')[0];
-    const fimStr = fim.toISOString().split('T')[0];
-    const fmt = (s) => s.split('-').reverse().join('/');
-
-    semanas.push({
-      inicio: inicioStr,
-      fim: fimStr,
-      label: `${fmt(inicioStr)} → ${fmt(fimStr)}`
-    });
-    d.setDate(d.getDate() + 7);
-  }
-  return semanas;
-}
-
-function calcLucroCicloCustom(inicio, fim) {
-  let entradas = 0, saidas = 0;
-  vendas.forEach(v => {
-    if (v.status !== 'cancelado' && v.data >= inicio && v.data <= fim) {
-      entradas += (v.status === 'finalizado' ? parseFloat(v.valorPago||0) : parseFloat(v.sinal||0));
-    }
-  });
-  fluxo.forEach(f => {
-    if (f.data >= inicio && f.data <= fim && f.status !== 'agendado') {
-      if (f.tipo === 'entrada') entradas += f.valor;
-      if (isCustoOp(f)) saidas += f.valor;
-    }
-  });
-  return entradas - saidas;
-}
-
-function initRepasseSemanas(mesKey) {
-  const sel = document.getElementById('repasseSemanaFilter');
-  if (!sel) return;
-  const semanas = getSemanasDoMes(mesKey);
-  const cicloAtual = getCicloRepasse();
-
-  sel.innerHTML = '';
-  semanas.forEach((s, i) => {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = s.label;
-    // Seleciona o ciclo atual por padrão
-    if (s.inicio === cicloAtual.inicio && s.fim === cicloAtual.fim) opt.selected = true;
-    sel.appendChild(opt);
-  });
-  // Se nenhum selecionado, seleciona o último
-  if (!sel.value && semanas.length) sel.value = semanas.length - 1;
-}
-
-function renderRepasses() {
-  const mesKey = document.getElementById('fluxoMesFilter')?.value || getMesKey(getMesAno().mes, getMesAno().ano);
-  const semanas = getSemanasDoMes(mesKey);
-  const idx = parseInt(document.getElementById('repasseSemanaFilter')?.value || 0);
-  const semana = semanas[idx] || semanas[semanas.length - 1];
-  if (!semana) return;
-
-  const lucroSemana = calcLucroCicloCustom(semana.inicio, semana.fim);
-  const pct = [0.10, 0.09, 0.08, 0.07, 0.47, 0.09, 0.09];
-  const labels = ['Dízimo (10%)', 'Caixa (9%)', 'Reserva (8%)', 'Impostos (7%)', 'Prolabore Conjunto (47%)', 'Lucros Luana (9%)', 'Lucros Gustavo (9%)'];
-  const colors = ['#e8546a', '#3dab7a', '#f0a030', '#4a7fc1', '#a855f7', '#ec4899', '#14b8a6'];
-  const valores = pct.map(p => (lucroSemana > 0 ? lucroSemana : 0) * p);
-
-  const fmt = (s) => s.split('-').reverse().join('/');
-  document.getElementById('infoCicloRepasse').innerHTML = `
-    Ciclo: <strong style="color:var(--ink);">${fmt(semana.inicio)} → ${fmt(semana.fim)}</strong>
-    &nbsp;|&nbsp; Lucro da Semana: <span style="color:${lucroSemana >= 0 ? 'var(--green)' : 'var(--red)'}; font-size:16px; font-weight:700;">${BRL(lucroSemana)}</span>`;
-
-  document.getElementById('listaValoresRepasse').innerHTML = labels.map((lbl, i) => `
-    <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);">
-      <span style="display:flex;align-items:center;gap:6px;">
-        <span style="width:10px;height:10px;border-radius:50%;background:${colors[i]};display:inline-block;"></span>${lbl}
-      </span>
-      <strong style="color:var(--ink)">${BRL(valores[i])}</strong>
-    </div>`).join('');
-
-  mkChart('chartRepasses', {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data: lucroSemana > 0 ? valores : pct.map(()=>1), backgroundColor: colors, borderWidth:2, borderColor:'#fff' }] },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} } }
-  });
-}
 
 function renderFluxo() {
   initFluxoMes();
@@ -1628,9 +1528,6 @@ function renderFluxo() {
     ? Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="origem-bar"><div class="origem-name">${k}</div><div class="origem-track"><div class="origem-fill" style="width:${(v/saídasTotal)*100}%;background:var(--red)"></div></div><div class="origem-val">${BRL(v)}</div></div>`).join('')
     : '<p style="font-size:13px;color:var(--ink-muted)">Sem saídas efetivadas no mês</p>';
 
-  // Init semanas e renderiza repasses
-  initRepasseSemanas(mesKey);
-  renderRepasses();
 
   document.getElementById('fluxoBody').innerHTML = [...mesFluxo].sort((a,b)=>(b.data||'')>(a.data||'')?1:-1).map(f=>`
     <tr>
@@ -1895,6 +1792,7 @@ document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click
 // TAREFAS DO DIA
 // ============================================================
 const STATUS_PENDENTES = ['aguardando'];
+let massaSelecionados = new Set(); // IDs selecionados para ação em massa
 let tarefaFiltroAtivo = 'all'; // 'all' | 'pagamentos' | 'agendadas' | 'producao' | 'personalizados'
 
 function setTarefaFilter(f) {
@@ -1943,7 +1841,7 @@ function getProducao() {
   return vendas.filter(v =>
     statusClass(v.status) === 'producao' &&
     v.data && v.data <= ontemStr
-  ).sort((a,b) => a.data < b.data ? -1 : 1);
+  ).sort((a,b) => (b.data||'') > (a.data||'') ? 1 : -1);
 }
 
 /** Retorna pedidos personalizados com prazo chegando/vencido */
@@ -1970,16 +1868,7 @@ function updateTarefasBadge() {
   const producao = getProducao().filter(v => !isPersonalizado(v)).length;
   const personalizados = getPersonalizadosAlerta().length;
 
-  // Badge de autorização de sexta
-  let authP = 0;
-  const dHoje = new Date(today() + 'T12:00:00');
-  const ciclo = getCicloRepasse();
-  const repasseKey = 'repasse_autorizado_' + ciclo.fim;
-  if (dHoje.getDay() === 5 && !LS.get(repasseKey, false)) authP = 1;
-
-  // Total urgente = pg-pendente + aguardando + agendadas + auth
-  const totalUrgente = pgPendente + aguardando + agendadas + authP;
-  const totalGeral = totalUrgente + producao + personalizados;
+  const totalGeral = pgPendente + aguardando + agendadas + producao + personalizados;
 
   const badge = document.getElementById('navAlertCount');
   if (!badge) return;
@@ -1998,44 +1887,54 @@ function updateTarefasBadge() {
   setChipCount('personalizados', personalizados);
 }
 
-function autorizarRepasses() {
-   const lucro = calcLucroCiclo();
-   const ciclo = getCicloRepasse();
-   const hojeStr = today();
-   
-   if (lucro <= 0) { showToast('Não há lucro apurado para repassar nesta semana.', 'error'); return; }
 
-   const regras = [
-      { desc: 'Dízimo (10%)', pct: 0.10 },
-      { desc: 'Caixa (9%)', pct: 0.09 },
-      { desc: 'Reserva (8%)', pct: 0.08 },
-      { desc: 'Impostos e Taxas (7%)', pct: 0.07 },
-      { desc: 'Prolabore Conjunto (47%)', pct: 0.47 },
-      { desc: 'Lucros Luana (9%)', pct: 0.09 },
-      { desc: 'Lucros Gustavo (9%)', pct: 0.09 }
-   ];
 
-   regras.forEach(r => {
-     fluxo.push({
-        id: 'rep_' + Date.now().toString() + Math.floor(Math.random()*10000),
-        tipo: 'saida',
-        data: hojeStr,
-        descricao: 'Repasse da Semana - ' + r.desc,
-        valor: lucro * r.pct,
-        categoria: 'repasse',
-        status: 'agendado'
-     });
-   });
-
-   LS.set('repasse_autorizado_' + ciclo.fim, true);
-   save(); if(db) saveFluxoRemote();
-   showToast('Repasses gerados! Eles agora estão nas suas contas agendadas para pagar.', 'success');
-   renderTarefas(); renderFluxo(); renderDashboard();
+function toggleMassaSelecionado(id) {
+  if (massaSelecionados.has(id)) massaSelecionados.delete(id);
+  else massaSelecionados.add(id);
+  // Update card visual
+  const card = document.querySelector(`[data-venda-id="${id}"]`);
+  if (card) card.classList.toggle('selecionado', massaSelecionados.has(id));
+  // Update toolbar count
+  const countEl = document.getElementById('massaCount');
+  if (countEl) countEl.textContent = `${massaSelecionados.size} selecionado(s)`;
+  const btn = document.getElementById('btnMassaFinalizar');
+  if (btn) btn.disabled = massaSelecionados.size === 0;
 }
 
-function ignorarRepasse(fimCiclo) {
-    LS.set('repasse_autorizado_' + fimCiclo, true);
-    renderTarefas();
+function selecionarTodosPgPendente() {
+  const lista = getEnviadosPgPendente();
+  const todosSelected = lista.every(v => massaSelecionados.has(v.id));
+  if (todosSelected) {
+    lista.forEach(v => massaSelecionados.delete(v.id));
+  } else {
+    lista.forEach(v => massaSelecionados.add(v.id));
+  }
+  renderTarefas();
+}
+
+function finalizarSelecionados() {
+  if (massaSelecionados.size === 0) return;
+  const count = massaSelecionados.size;
+  massaSelecionados.forEach(id => {
+    const v = vendas.find(x => x.id === id);
+    if (!v) return;
+    v.status = 'finalizado';
+    if (!v.valorPago || parseFloat(v.valorPago) < parseFloat(v.valorProd)) v.valorPago = v.valorProd;
+    if (!v.dataFinalizacao) v.dataFinalizacao = today();
+    saveVendaRemote(v);
+  });
+  massaSelecionados.clear();
+  save();
+  showToast(`${count} pedido(s) finalizados ✓`, 'success');
+  updateTarefasBadge();
+  renderTarefas();
+  if (['dashboard','vendas'].includes(currentPage)) renderPage(currentPage);
+}
+
+function cancelarMassa() {
+  massaSelecionados.clear();
+  renderTarefas();
 }
 
 function renderTarefas() {
@@ -2048,15 +1947,13 @@ function renderTarefas() {
 
   const todayStr = today();
   const dHoje = new Date(todayStr + 'T12:00:00');
-  const ciclo = getCicloRepasse();
-  const repasseKey = 'repasse_autorizado_' + ciclo.fim;
-  const temRepasseSexta = dHoje.getDay() === 5 && !LS.get(repasseKey, false);
+
 
   // PG Pendente automático = enviados há 1+ dia sem finalizar
   const pgPendenteLista = getEnviadosPgPendente();
   const aguardandoLista = vendasPendentes; // só aguardando agora
 
-  const totalGeral = pgPendenteLista.length + aguardandoLista.length + fluxoLista.length + producaoLista.length + personalizadosLista.length + (temRepasseSexta ? 1 : 0);
+  const totalGeral = pgPendenteLista.length + aguardandoLista.length + fluxoLista.length + producaoLista.length + personalizadosLista.length;
   document.getElementById('tarefasCount').textContent = totalGeral;
 
   if (totalGeral === 0) {
@@ -2075,7 +1972,7 @@ function renderTarefas() {
   const opts = STATUS_OPTS.map(o=>`<option value="${o.v}">${o.l}</option>`).join('');
 
   // ---- HELPER: card de venda ----
-  function cardVenda(v, secaoClasse) {
+  function cardVenda(v, secaoClasse, showCheckbox=false) {
     const diasAtraso = Math.floor((new Date(todayStr) - new Date(v.data)) / 86400000);
     const isUrgente = diasAtraso >= 2;
     const isProd = statusClass(v.status) === 'producao';
@@ -2119,8 +2016,10 @@ function renderTarefas() {
       diasBadgeContent = `<div class="tarefa-dias-num">${diasUteis}</div><div class="tarefa-dias-label">d.úteis</div>`;
     }
 
+    const isSelected = massaSelecionados.has(v.id);
     return `
-      <div class="tarefa-card ${cardClass}">
+      <div class="tarefa-card ${cardClass}${isSelected ? ' selecionado' : ''}" data-venda-id="${v.id}">
+        ${showCheckbox ? `<input type="checkbox" class="tarefa-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleMassaSelecionado('${v.id}')" onclick="event.stopPropagation()">` : ''}
         <div class="tarefa-dias-badge ${badgeClass}">
           ${diasBadgeContent}
         </div>
@@ -2146,40 +2045,24 @@ function renderTarefas() {
 
   const mostrar = (grupo) => f === 'all' || f === grupo;
 
-  // ---- 1. APROVAÇÃO DE SEXTA ----
-  if ((f === 'all' || f === 'agendadas') && temRepasseSexta) {
-    const lucroSemana = calcLucroCiclo();
-    const formatoData = (dStr) => dStr.split('-').reverse().join('/');
-    html += `
-      <div class="tarefas-filter-bar" style="margin-bottom:0; border-radius:var(--radius) var(--radius) 0 0; border-bottom:none; background:#e0f4ff; border-color:#0284c7;">
-        <div class="tarefa-section-title" style="color:#0284c7; margin:0;">💰 Aprovação de Repasse</div>
-      </div>
-      <div class="tarefa-card urgente" style="background:#e0f4ff; border-color:#0284c7; border-radius:0 0 var(--radius) var(--radius); margin-bottom:20px;">
-        <div class="tarefa-dias-badge urgente" style="background:#0284c7; color:#fff;">
-          <div class="tarefa-dias-num">💰</div>
-          <div class="tarefa-dias-label" style="font-size:7px;">LUCRO</div>
-        </div>
-        <div class="tarefa-info">
-          <div class="tarefa-contato" style="color:#0284c7; font-size:16px;">Aprovação de Repasses da Semana</div>
-          <div class="tarefa-produto" style="font-weight:500;">Ciclo: ${formatoData(ciclo.inicio)} a ${formatoData(ciclo.fim)}</div>
-          <div class="tarefa-meta">
-            <span class="tarefa-chip" style="background:#fff; color:var(--ink); font-size:13px; font-weight:600; padding:6px 12px; border:1px solid #bae6fd;">Lucro Apurado: ${BRL(lucroSemana)}</span>
-          </div>
-        </div>
-        <div class="tarefa-actions" style="flex-direction:column; align-items:flex-end;">
-          ${lucroSemana > 0
-            ? `<button class="btn btn-primary btn-sm" onclick="autorizarRepasses()" style="background:#0284c7; font-size:12px; padding:8px 16px;">✓ Aprovar e Agendar Pagamentos</button>`
-            : `<span style="font-size:11px; color:var(--ink-muted); font-weight:600; margin-bottom:4px;">Sem lucro para repassar</span>
-               <button class="btn btn-ghost btn-sm" onclick="ignorarRepasse('${ciclo.fim}')">Dispensar Aviso</button>`
-          }
-        </div>
-      </div>`;
-  }
 
-  // ---- 2. PG PENDENTE ----
+  // ---- 2. PG PENDENTE (enviados há 1+ dia) ----
   if (mostrar('pagamentos') && pgPendenteLista.length > 0) {
+    const todosSelec = pgPendenteLista.every(v => massaSelecionados.has(v.id));
     html += `<div class="tarefa-section-title">💳 PG Pendente — Enviado sem Finalizar</div>`;
-    pgPendenteLista.forEach(v => { html += cardVenda(v, 'pagamentos'); });
+    // Toolbar de seleção em massa
+    html += `
+      <div class="massa-toolbar">
+        <button class="btn-select-all" onclick="selecionarTodosPgPendente()">
+          ${todosSelec ? '☑ Desmarcar todos' : '☐ Selecionar todos'}
+        </button>
+        <span class="count" id="massaCount">${massaSelecionados.size} selecionado(s)</span>
+        <button class="btn-massa-cancel" onclick="cancelarMassa()">Cancelar</button>
+        <button class="btn-massa" id="btnMassaFinalizar" onclick="finalizarSelecionados()" ${massaSelecionados.size === 0 ? 'disabled style="opacity:0.5"' : ''}>
+          ✓ Finalizar Selecionados (${massaSelecionados.size})
+        </button>
+      </div>`;
+    pgPendenteLista.forEach(v => { html += cardVenda(v, 'pagamentos', true); });
   }
 
   // ---- 3. CONTAS AGENDADAS ----
