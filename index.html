@@ -991,7 +991,8 @@ const isCustoOp = (f) => f.tipo === 'saida' && CATEGORIAS_CUSTO.includes(f.categ
 function isPersonalizado(v) {
   if (!v.produto) return false;
   const prods = v.produto.toLowerCase();
-  return prods.includes('personaliz') || prods.includes('personalizado') || prods.includes('mascotinho') || prods.includes('realista') || prods.includes('casamento') || prods.includes('debutante');
+  // Só considera personalizado quando o produto é explicitamente marcado como tal
+  return prods.includes('personaliz');
 }
 
 /** Calcula quantos dias úteis (seg-sex) se passaram desde uma data */
