@@ -1130,7 +1130,7 @@ function renderDashboard() {
     </div>`;
 
   document.getElementById('projecaoVal').innerHTML = BRL(projecao);
-  document.getElementById('projecaoSub').textContent = `Média/dia: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}`;
+  document.getElementById('projecaoSub').innerHTML = `Média/dia: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}`;
   document.getElementById('lucroProjVal').innerHTML = BRL(lucroProj);
 
   // Indicador de meta de lucro se configurada
@@ -2047,11 +2047,50 @@ function renderTarefas() {
   const mostrar = (grupo) => f === 'all' || f === grupo;
 
 
-  // ---- 2. PG PENDENTE (enviados há 1+ dia) ----
+  // ---- 1. EM PRODUÇÃO (não-personalizado) — mais recente no topo ----
+  if (mostrar('producao') && producaoLista.length > 0) {
+    html += `<div class="tarefa-section-title">⚙️ Em Produção</div>`;
+    producaoLista.forEach(v => { html += cardVenda(v, 'producao'); });
+  }
+
+  // ---- 2. AGUARDANDO + PERSONALIZADOS COM PRAZO NO ÚLTIMO DIA ----
+  const aguardandoNormais = aguardandoLista.filter(v => !isPersonalizado(v));
+  // Personalizados urgentes (prazo esgotado ou último dia = restantes <= 1) entram aqui
+  const todasPersonalizadas = [
+    ...aguardandoLista.filter(v => isPersonalizado(v)),
+    ...personalizadosLista.filter(v => statusClass(v.status) !== 'aguardando')
+  ].filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i)
+   .sort((a,b) => calcDiasUteisDesde(b.data) - calcDiasUteisDesde(a.data));
+
+  const persUrgentes = todasPersonalizadas.filter(v => infoPrazoPersonalizado(v).urgente || (3 - calcDiasUteisDesde(v.data)) <= 1);
+  const persNaoUrgentes = todasPersonalizadas.filter(v => !persUrgentes.find(u => u.id === v.id));
+
+  const temAguardando = mostrar('producao') && (aguardandoNormais.length > 0 || persUrgentes.length > 0);
+  if (temAguardando) {
+    html += `<div class="tarefa-section-title">⏳ Aguardando</div>`;
+    aguardandoNormais.forEach(v => { html += cardVenda(v, 'producao'); });
+    // Personalizados urgentes aparecem junto com aguardando
+    if (persUrgentes.length > 0) {
+      persUrgentes.forEach(v => { html += cardVenda(v, 'personalizados'); });
+    }
+  }
+
+  // ---- 3. PERSONALIZADOS com prazo ok (não urgentes) ----
+  if (mostrar('personalizados') && persNaoUrgentes.length > 0) {
+    html += `
+      <div class="tarefa-section-title" style="color:var(--purple); margin-top:8px;">
+        ✏️ Pedidos Personalizados — Prazo 3 Dias Úteis
+      </div>
+      <div style="background:var(--purple-light); border:1px solid #c4b5fd; border-radius:var(--radius-sm); padding:10px 16px; margin-bottom:14px; font-size:12.5px; color:var(--purple); font-weight:500;">
+        ℹ️ Pedidos personalizados com prazo folgado. Acompanhe abaixo.
+      </div>`;
+    persNaoUrgentes.forEach(v => { html += cardVenda(v, 'personalizados'); });
+  }
+
+  // ---- 4. PG PENDENTE (enviados há 1+ dia sem finalizar) ----
   if (mostrar('pagamentos') && pgPendenteLista.length > 0) {
     const todosSelec = pgPendenteLista.every(v => massaSelecionados.has(v.id));
     html += `<div class="tarefa-section-title">💳 PG Pendente — Enviado sem Finalizar</div>`;
-    // Toolbar de seleção em massa
     html += `
       <div class="massa-toolbar">
         <button class="btn-select-all" onclick="selecionarTodosPgPendente()">
@@ -2066,19 +2105,19 @@ function renderTarefas() {
     pgPendenteLista.forEach(v => { html += cardVenda(v, 'pagamentos', true); });
   }
 
-  // ---- 3. CONTAS AGENDADAS ----
+  // ---- 5. CONTAS AGENDADAS ----
   if (mostrar('agendadas') && fluxoLista.length > 0) {
     html += `<div class="tarefa-section-title">📅 Contas Agendadas</div>`;
     fluxoLista.forEach(f => {
       html += `
         <div class="tarefa-card urgente">
-          <div class="tarefa-dias-badge urgente" style="background:#fff3cd; color:#856404; border: 1px solid #ffeeba;">
+          <div class="tarefa-dias-badge urgente" style="background:#fff3cd; color:#856404; border:1px solid #ffeeba;">
             <div class="tarefa-dias-num">💳</div>
             <div class="tarefa-dias-label" style="font-size:7px;">PAGAR</div>
           </div>
           <div class="tarefa-info">
             <div class="tarefa-contato">${f.descricao||'Pagamento'}</div>
-            <div class="tarefa-produto" style="font-weight:600; color:var(--red);">Pagamento Agendado</div>
+            <div class="tarefa-produto" style="font-weight:600;color:var(--red);">Pagamento Agendado</div>
             <div class="tarefa-meta">
               <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 Vencimento: ${f.data.split('-').reverse().join('/')}</span>
               <span class="tarefa-chip" style="background:#fdeaea;color:var(--red)">💰 ${BRL(f.valor)}</span>
@@ -2089,37 +2128,6 @@ function renderTarefas() {
           </div>
         </div>`;
     });
-  }
-
-  // ---- 4. AGUARDANDO (não-personalizado) ----
-  const aguardandoNormais = aguardandoLista.filter(v => !isPersonalizado(v));
-  if (mostrar('producao') && aguardandoNormais.length > 0) {
-    html += `<div class="tarefa-section-title">⏳ Aguardando Retorno</div>`;
-    aguardandoNormais.forEach(v => { html += cardVenda(v, 'producao'); });
-  }
-
-  // ---- 5. EM PRODUÇÃO (não-personalizado) ----
-  if (mostrar('producao') && producaoLista.length > 0) {
-    html += `<div class="tarefa-section-title">⚙️ Em Produção</div>`;
-    producaoLista.forEach(v => { html += cardVenda(v, 'producao'); });
-  }
-
-  // ---- 6. PERSONALIZADOS (menor prioridade, seção própria) ----
-  const todasPersonalizadas = [
-    ...aguardandoLista.filter(v => isPersonalizado(v)),
-    ...personalizadosLista.filter(v => statusClass(v.status) !== 'aguardando')
-  ].filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i)
-   .sort((a,b) => calcDiasUteisDesde(b.data) - calcDiasUteisDesde(a.data));
-
-  if (mostrar('personalizados') && todasPersonalizadas.length > 0) {
-    html += `
-      <div class="tarefa-section-title" style="color:var(--purple); margin-top:8px;">
-        ✏️ Pedidos Personalizados — Prazo 3 Dias Úteis
-      </div>
-      <div style="background:var(--purple-light); border:1px solid #c4b5fd; border-radius:var(--radius-sm); padding:10px 16px; margin-bottom:14px; font-size:12.5px; color:var(--purple); font-weight:500;">
-        ℹ️ Pedidos personalizados têm prazo de 3 dias úteis. Acompanhe o prazo de cada um abaixo.
-      </div>`;
-    todasPersonalizadas.forEach(v => { html += cardVenda(v, 'personalizados'); });
   }
 
   // Se filtro ativo mas sem itens naquela categoria
