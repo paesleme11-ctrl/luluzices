@@ -398,7 +398,7 @@
       <label class="btn btn-ghost btn-sm" style="cursor:pointer">
         📂 Restaurar<input type="file" accept=".json" style="display:none" onchange="restoreJSON(event)">
       </label>
-      <button class="btn btn-primary" id="topbarAction" onclick="openModalVenda()">+ Nova Venda</button>
+      <button class="btn btn-primary" id="topbarAction" onclick="openModalVenda()" title="Atalho: Ctrl+I">+ Nova Venda</button>
     </div>
   </div>
 
@@ -1030,6 +1030,7 @@ function performUndo() {
 
 document.addEventListener('keydown', (e) => {
   const isUndo = (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z');
+  const isNovaVenda = (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'i' || e.key === 'I');
   if (isUndo) {
     // Evita conflito com undo nativo de inputs de texto
     const tag = document.activeElement?.tagName;
@@ -1037,6 +1038,10 @@ document.addEventListener('keydown', (e) => {
     if (isEditable) return;
     e.preventDefault();
     performUndo();
+  }
+  if (isNovaVenda) {
+    e.preventDefault();
+    openModalVenda();
   }
 });
 
@@ -1273,15 +1278,24 @@ function renderDashboard() {
   mkChart('chartAcumulado', {
     type: 'line',
     data: {
-      labels: days.map(d => d.split('-')[2]),
+      labels: days.map(d => d.split('-')[2] + '/' + d.split('-')[1]),
       datasets: [
-        { label:'Realizado', data: acumData, borderColor:'#e8546a', backgroundColor:'rgba(232,84,106,0.1)', borderWidth:2.5, pointRadius:0, tension:0.3, fill:true },
-        { label:'Meta', data: metaData, borderColor:'#c9bcb8', borderWidth:1.5, borderDash:[4,3], pointRadius:0, tension:0.3 },
+        { label:'Realizado', data: acumData, borderColor:'#e8546a', backgroundColor:'rgba(232,84,106,0.1)', borderWidth:2.5, pointRadius:0, pointHoverRadius:5, pointHoverBackgroundColor:'#e8546a', pointHoverBorderColor:'#fff', pointHoverBorderWidth:2, tension:0.3, fill:true },
+        { label:'Meta', data: metaData, borderColor:'#c9bcb8', borderWidth:1.5, borderDash:[4,3], pointRadius:0, pointHoverRadius:4, pointHoverBackgroundColor:'#9a8890', tension:0.3 },
       ]
     },
     options: {
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false} },
+      interaction: { mode:'index', intersect:false },
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            title: (items) => `Dia ${items[0].label}`,
+            label: (ctx) => `${ctx.dataset.label}: ${BRL_RAW(ctx.raw)}`,
+          }
+        }
+      },
       scales:{
         x:{ ticks:{font:{size:9},maxTicksLimit:8}, grid:{display:false} },
         y:{ ticks:{font:{size:9},maxTicksLimit:4,callback:v=>'R$'+(v/1000).toFixed(0)+'k'}, grid:{color:'#f5ebe0'} }
