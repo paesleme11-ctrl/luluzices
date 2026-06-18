@@ -403,6 +403,12 @@
   </div>
 
   <div class="page active" id="page-dashboard">
+    <!-- Seletor de mês do dashboard -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:12px 20px;">
+      <span style="font-size:12px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.8px;">📊 Período:</span>
+      <select id="dashMesFilter" onchange="onDashMesChange()" style="font-size:13.5px;padding:7px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-weight:500;color:var(--ink);outline:none;cursor:pointer;flex:1;max-width:240px;"></select>
+      <span id="dashMesIndicador" style="font-size:12px;color:var(--ink-muted);margin-left:auto;"></span>
+    </div>
     <div class="kpi-grid" id="kpiGrid"></div>
 
     <div class="grid-3" style="margin-bottom:20px">
@@ -666,10 +672,17 @@
             </div>
           </div>
           <div class="form-row cols-3">
-            <div class="form-group"><label>Meta de ROI (x)</label><input type="number" id="metaROI" placeholder="5" step="0.1"></div>
-            <div class="form-group"><label>Meta de CAC (R$)</label><input type="number" id="metaCAC" placeholder="25" step="0.5"></div>
+            <div class="form-group">
+              <label>Meta de ROI (x) <span style="color:var(--rose);font-size:10px;">auto</span></label>
+              <input type="number" id="metaROI" placeholder="Calculado automaticamente" step="0.1">
+            </div>
+            <div class="form-group">
+              <label>Meta de CAC (R$) <span style="color:var(--rose);font-size:10px;">auto</span></label>
+              <input type="number" id="metaCAC" placeholder="Calculado automaticamente" step="0.5">
+            </div>
             <div class="form-group"><label>Dias do Mês</label><input type="number" id="metaDias" placeholder="31" min="28" max="31"></div>
           </div>
+          <div id="roiCacAutoInfo" style="font-size:11.5px;color:var(--ink-muted);background:var(--cream);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:4px;display:none;"></div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px" onclick="saveMeta()">Salvar Metas</button>
         </div>
       </div>
@@ -931,11 +944,23 @@ function today() {
 }
 
 const getMesAno = () => ({ mes: new Date().getMonth(), ano: new Date().getFullYear() });
+
+// Mês selecionado no dashboard (null = mês atual)
+let dashboardMesKey = null;
+function getDashMesKey() {
+  if (dashboardMesKey) return dashboardMesKey;
+  const { mes, ano } = getMesAno();
+  return getMesKey(mes, ano);
+}
+function isCurrentMonth(mesKey) {
+  const { mes, ano } = getMesAno();
+  return mesKey === getMesKey(mes, ano);
+}
 const getMesKey = (mes, ano) => `${ano}-${String(mes+1).padStart(2,'0')}`;
 
-function getMeta() {
-  const { mes, ano } = getMesAno();
-  return metas[getMesKey(mes, ano)] || { receita: 14300, vendas: 313, roi: 5, cac: 20, dias: 31 };
+function getMeta(overrideMesKey) {
+  const key = overrideMesKey || (() => { const { mes, ano } = getMesAno(); return getMesKey(mes, ano); })();
+  return metas[key] || { receita: 0, vendas: 0, roi: 0, cac: 0, dias: 31 };
 }
 
 function getVendasMes(mesKey) {
@@ -1147,12 +1172,48 @@ function calcLucroCiclo() {
 // ============================================================
 // DASHBOARD
 // ============================================================
+function initDashMesFilter() {
+  const sel = document.getElementById('dashMesFilter');
+  if (!sel) return;
+  const { mes: mesAtual, ano: anoAtual } = getMesAno();
+  const mesesSet = new Set();
+  for (let i = 0; i < 13; i++) {
+    const d = new Date(anoAtual, mesAtual - i, 1);
+    mesesSet.add(getMesKey(d.getMonth(), d.getFullYear()));
+  }
+  vendas.forEach(v => { if (v.data) mesesSet.add(v.data.slice(0,7)); });
+  const sorted = [...mesesSet].sort().reverse();
+  const current = getDashMesKey();
+  sel.innerHTML = sorted.map(k => {
+    const [y,m] = k.split('-');
+    const label = new Date(parseInt(y),parseInt(m)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    return `<option value="${k}" ${k===current?'selected':''}>${label}</option>`;
+  }).join('');
+}
+
+function onDashMesChange() {
+  const sel = document.getElementById('dashMesFilter');
+  if (!sel) return;
+  dashboardMesKey = sel.value;
+  renderDashboard();
+}
+
 function renderDashboard() {
-  const { mes, ano } = getMesAno();
-  const mesKey = getMesKey(mes, ano);
+  initDashMesFilter();
+  const mesKey = getDashMesKey();
+  const [anoStr, mesStr] = mesKey.split('-');
+  const mes = parseInt(mesStr) - 1;
+  const ano = parseInt(anoStr);
   document.getElementById('monthBadge').textContent = new Date(ano, mes, 1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
 
-  const meta = getMeta();
+  // Indicador de período no seletor
+  const ind = document.getElementById('dashMesIndicador');
+  if (ind) {
+    if (isCurrentMonth(mesKey)) { ind.innerHTML = '<span style="color:var(--green);font-weight:600;">● Mês atual</span>'; }
+    else { ind.innerHTML = '<span style="color:var(--amber);font-weight:600;">📅 Histórico</span>'; }
+  }
+
+  const meta = getMeta(mesKey);
   const vm = getVendasMes(mesKey);           // inclui finalizados neste mês (para receita)
   const vmCriados = getVendasMesCriados(mesKey); // só criados neste mês (para contagem/ticket)
   const fatTotal = getFaturamento(vm, mesKey);
@@ -1171,15 +1232,16 @@ function renderDashboard() {
   const aReceber = vmCriados.filter(v => v.status !== 'finalizado' && v.status !== 'cancelado')
     .reduce((s, v) => s + Math.max((parseFloat(v.valorProd)||0) - (parseFloat(v.valorPago)||0), 0), 0);
 
-  const diasMes = parseInt(meta.dias) || 31;
-  const diaAtual = new Date().getDate();
+  const diasMes = parseInt(meta.dias) || new Date(ano, mes + 1, 0).getDate();
+  const ehMesAtual = isCurrentMonth(mesKey);
+  const diaAtual = ehMesAtual ? new Date().getDate() : diasMes;
   const mediaAtual = diaAtual > 0 ? fatTotal / diaAtual : 0;
-  const projecao = mediaAtual * diasMes;
-  const mediaNec = (meta.receita - fatTotal) / Math.max(diasMes - diaAtual, 1);
-  const pctMeta = Math.min((fatTotal / (meta.receita||1)) * 100, 100);
+  const projecao = ehMesAtual ? mediaAtual * diasMes : fatTotal; // histórico = real
+  const mediaNec = ehMesAtual ? (meta.receita - fatTotal) / Math.max(diasMes - diaAtual, 1) : 0;
+  const pctMeta = meta.receita > 0 ? Math.min((fatTotal / meta.receita) * 100, 100) : null;
   const pctDias = Math.min((diaAtual / diasMes) * 100, 100);
 
-  const projecaoDespesa = diaAtual > 0 ? (despesasAtuais / diaAtual) * diasMes : 0;
+  const projecaoDespesa = diaAtual > 0 ? (despesasAtuais / diaAtual) * (ehMesAtual ? diasMes : diaAtual) : 0;
   const lucroProj = projecao - projecaoDespesa;
 
   const roiColor = roiNum >= (meta.roi || 0) ? 'var(--green)' : (roiNum > 0 ? 'var(--red)' : 'var(--ink-muted)');
@@ -1189,7 +1251,7 @@ function renderDashboard() {
     <div class="kpi-card" style="--kpi-color:var(--rose)">
       <div class="kpi-label">Faturamento Mês</div>
       <div class="kpi-value">${BRL(fatTotal)}</div>
-      <div class="kpi-sub">Meta: ${BRL(meta.receita)} &nbsp;<span class="kpi-badge ${pctMeta>=100?'badge-up':pctMeta>=70?'badge-neutral':'badge-down'}">${pctMeta.toFixed(1)}%</span></div>
+      <div class="kpi-sub">Meta: ${meta.receita>0?BRL(meta.receita):'não definida'} &nbsp;${pctMeta!==null?`<span class="kpi-badge ${pctMeta>=100?'badge-up':pctMeta>=70?'badge-neutral':'badge-down'}">${pctMeta.toFixed(1)}%</span>`:''}</div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--green)">
       <div class="kpi-label">Total de Pedidos</div>
@@ -1208,7 +1270,7 @@ function renderDashboard() {
     </div>`;
 
   document.getElementById('projecaoVal').innerHTML = BRL(projecao);
-  document.getElementById('projecaoSub').innerHTML = `Média/dia: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}`;
+  document.getElementById('projecaoSub').innerHTML = ehMesAtual ? `Média/dia: ${BRL(mediaAtual)} | Necessária: ${BRL(mediaNec)}` : `Média/dia: ${BRL(mediaAtual)} | Mês encerrado`;
   document.getElementById('lucroProjVal').innerHTML = BRL(lucroProj);
 
   // Indicador de meta de lucro se configurada
@@ -1223,8 +1285,8 @@ function renderDashboard() {
     }
   }
 
-  document.getElementById('metaPct').textContent = pctMeta.toFixed(1) + '%';
-  document.getElementById('metaBar').style.width = pctMeta + '%';
+  document.getElementById('metaPct').textContent = pctMeta !== null ? pctMeta.toFixed(1) + '%' : '—';
+  document.getElementById('metaBar').style.width = (pctMeta || 0) + '%';
   document.getElementById('diasPct').textContent = pctDias.toFixed(1) + '%';
   document.getElementById('diasBar').style.width = pctDias + '%';
 
@@ -1270,7 +1332,10 @@ function renderDashboard() {
     acumBarEl.className = 'progress-fill' + (pctVsMetaHoje >= 100 ? ' green' : pctVsMetaHoje >= 80 ? '' : ' amber');
   }
   if (acumStatusEl) {
-    if (pctVsMetaHoje >= 100) { acumStatusEl.textContent = `✅ ${pctVsMetaHoje.toFixed(0)}% da meta esperada`; acumStatusEl.style.color = 'var(--green)'; }
+    if (!ehMesAtual) {
+      acumStatusEl.textContent = '📅 Mês encerrado';
+      acumStatusEl.style.color = 'var(--ink-muted)';
+    } else if (pctVsMetaHoje >= 100) { acumStatusEl.textContent = `✅ ${pctVsMetaHoje.toFixed(0)}% da meta esperada`; acumStatusEl.style.color = 'var(--green)'; }
     else if (pctVsMetaHoje >= 80) { acumStatusEl.textContent = `🟡 ${pctVsMetaHoje.toFixed(0)}% da meta esperada`; acumStatusEl.style.color = 'var(--amber)'; }
     else { acumStatusEl.textContent = `🔴 ${pctVsMetaHoje.toFixed(0)}% da meta esperada`; acumStatusEl.style.color = 'var(--red)'; }
   }
@@ -1801,6 +1866,20 @@ function calcROIMedioUltimos(nMeses) {
   return rois.length > 0 ? rois.reduce((a,b)=>a+b,0)/rois.length : 0;
 }
 
+/** Calcula CAC médio dos últimos N meses */
+function calcCACMedioUltimos(nMeses) {
+  const { mes, ano } = getMesAno();
+  const cacs = [];
+  for (let i = 1; i <= nMeses; i++) {
+    const d = new Date(ano, mes - i, 1);
+    const key = getMesKey(d.getMonth(), d.getFullYear());
+    const pedidos = getTotalPedidos(getVendasMesCriados(key));
+    const mkt = fluxo.filter(f => (f.data||'').startsWith(key) && f.tipo === 'saida' && f.categoria === 'marketing' && f.status !== 'agendado').reduce((s,f)=>s+f.valor,0);
+    if (pedidos > 0 && mkt > 0) cacs.push(mkt / pedidos);
+  }
+  return cacs.length > 0 ? cacs.reduce((a,b)=>a+b,0)/cacs.length : 0;
+}
+
 function calcMetasAutomaticas() {
   const lucroMeta = parseFloat(document.getElementById('metaLucro')?.value) || 0;
   const box = document.getElementById('metaAutoCalc');
@@ -1867,9 +1946,26 @@ function renderMetas() {
   document.getElementById('metaLucro').value = m.lucro||'';
   document.getElementById('metaReceita').value = m.receita||'';
   document.getElementById('metaVendas').value = m.vendas||'';
-  document.getElementById('metaROI').value = m.roi||'';
-  document.getElementById('metaCAC').value = m.cac||'';
   document.getElementById('metaDias').value = m.dias||31;
+
+  // ROI e CAC: usa o salvo, ou se vazio pré-preenche com média trimestral
+  const roiAuto = calcROIMedioUltimos(3);
+  const cacAuto = calcCACMedioUltimos(3);
+  document.getElementById('metaROI').value = m.roi || (roiAuto > 0 ? roiAuto.toFixed(1) : '');
+  document.getElementById('metaCAC').value = m.cac || (cacAuto > 0 ? cacAuto.toFixed(2) : '');
+
+  const infoEl = document.getElementById('roiCacAutoInfo');
+  if (infoEl) {
+    const parts = [];
+    if (roiAuto > 0) parts.push(`ROI médio trimestral: <strong>${roiAuto.toFixed(1)}x</strong>`);
+    if (cacAuto > 0) parts.push(`CAC médio trimestral: <strong>R$ ${cacAuto.toFixed(2)}</strong>`);
+    if (parts.length > 0) {
+      infoEl.innerHTML = '📊 Pré-preenchido com média dos últimos 3 meses: ' + parts.join(' · ') + ' — ajuste se necessário.';
+      infoEl.style.display = 'block';
+    } else {
+      infoEl.style.display = 'none';
+    }
+  }
 
   // Recalcula projeção se lucro já preenchido
   if (m.lucro) setTimeout(calcMetasAutomaticas, 50);
