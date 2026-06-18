@@ -444,6 +444,7 @@
             <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.2);">
                 <div class="projecao-label">Lucro Líquido Projetado (Mês)</div>
                 <div class="projecao-value" id="lucroProjVal" style="font-size:26px; margin-top:2px;">—</div>
+                <div id="metaLucroIndicador" style="font-size:11px;opacity:0.85;margin-top:4px;"></div>
             </div>
           </div>
           <div class="progress-wrap" style="margin-top:16px">
@@ -1207,10 +1208,14 @@ function renderDashboard() {
 
   // Indicador de meta de lucro se configurada
   const metaLucro = meta.lucro || 0;
-  const lucroProjEl = document.getElementById('lucroProjVal');
-  if (lucroProjEl && metaLucro > 0) {
-    const pctLucro = Math.min((lucroProj / metaLucro) * 100, 100);
-    lucroProjEl.insertAdjacentHTML('afterend', `<div style="font-size:11px;opacity:0.85;margin-top:4px;">Meta lucro: ${BRL(metaLucro)} <span style="background:rgba(255,255,255,0.2);padding:1px 6px;border-radius:10px;">${pctLucro.toFixed(0)}%</span></div>`);
+  const metaLucroIndEl = document.getElementById('metaLucroIndicador');
+  if (metaLucroIndEl) {
+    if (metaLucro > 0) {
+      const pctLucro = Math.min((lucroProj / metaLucro) * 100, 100);
+      metaLucroIndEl.innerHTML = `Meta lucro: ${BRL(metaLucro)} <span style="background:rgba(255,255,255,0.2);padding:1px 6px;border-radius:10px;">${pctLucro.toFixed(0)}%</span>`;
+    } else {
+      metaLucroIndEl.innerHTML = '';
+    }
   }
 
   document.getElementById('metaPct').textContent = pctMeta.toFixed(1) + '%';
