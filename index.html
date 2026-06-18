@@ -391,6 +391,7 @@
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="topbar-right">
       <span id="fbStatus" style="display:none;font-size:12px;color:var(--amber);font-weight:500;padding:4px 10px;background:var(--amber-light);border-radius:20px"></span>
+      <button class="btn btn-ghost btn-sm" id="btnUndo" onclick="performUndo()" title="Desfazer última ação (Ctrl+Z)" style="opacity:0.4">↩ Desfazer</button>
       <button class="btn btn-ghost btn-sm btn-eye" id="btnOcultarValores" onclick="toggleOcultarValores()" title="Ocultar/mostrar valores">👁</button>
       <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV</button>
       <button class="btn btn-ghost btn-sm" onclick="backupJSON()">💾 Backup</button>
@@ -407,8 +408,29 @@
     <div class="grid-3" style="margin-bottom:20px">
       <div class="card">
         <div class="card-header"><span class="card-title">Receita Acumulada vs Meta</span></div>
-        <div class="card-body" style="height:200px;position:relative">
-          <canvas id="chartAcumulado"></canvas>
+        <div class="card-body">
+          <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;">
+            <div>
+              <div style="font-family:'DM Serif Display',serif; font-size:30px; color:var(--rose); line-height:1;" id="acumRealizadoVal">—</div>
+              <div style="font-size:11px; color:var(--ink-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;">Realizado até hoje</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-family:'DM Serif Display',serif; font-size:20px; color:var(--ink-muted); line-height:1;" id="acumMetaHojeVal">—</div>
+              <div style="font-size:11px; color:var(--ink-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;">Meta para hoje</div>
+            </div>
+          </div>
+
+          <div class="progress-bar" style="height:14px; margin-bottom:6px;">
+            <div class="progress-fill" id="acumBarRealizado" style="width:0%; position:relative; z-index:2;"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:18px;">
+            <span id="acumStatusLabel" style="font-weight:600;">—</span>
+            <span style="color:var(--ink-muted);">Meta do mês: <strong id="acumMetaTotalVal" style="color:var(--ink);">—</strong></span>
+          </div>
+
+          <div style="height:130px; position:relative;">
+            <canvas id="chartAcumulado"></canvas>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -967,6 +989,56 @@ function showToast(msg, type='') {
   setTimeout(() => t.classList.remove('show'), 2800);
 }
 
+// ============================================================
+// SISTEMA DE UNDO (Ctrl+Z)
+// ============================================================
+let undoStack = []; // pilha de ações reversíveis, máx 10
+const UNDO_MAX = 10;
+
+function pushUndo(action) {
+  undoStack.push(action);
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  updateUndoButton();
+}
+
+function updateUndoButton() {
+  const btn = document.getElementById('btnUndo');
+  if (!btn) return;
+  const has = undoStack.length > 0;
+  btn.style.opacity = has ? '1' : '0.4';
+  btn.disabled = !has;
+  if (has) {
+    const last = undoStack[undoStack.length - 1];
+    btn.title = `Desfazer: ${last.label || 'última ação'} (Ctrl+Z)`;
+  } else {
+    btn.title = 'Nada para desfazer';
+  }
+}
+
+function performUndo() {
+  const action = undoStack.pop();
+  if (!action) { showToast('Nada para desfazer', ''); return; }
+  action.undo();
+  save();
+  if (action.remoteUndo) action.remoteUndo();
+  showToast(action.label ? `Desfeito: ${action.label}` : 'Ação desfeita ✓', 'success');
+  renderPage(currentPage);
+  updateTarefasBadge();
+  updateUndoButton();
+}
+
+document.addEventListener('keydown', (e) => {
+  const isUndo = (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z');
+  if (isUndo) {
+    // Evita conflito com undo nativo de inputs de texto
+    const tag = document.activeElement?.tagName;
+    const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+    if (isEditable) return;
+    e.preventDefault();
+    performUndo();
+  }
+});
+
 let _charts = {};
 function mkChart(id, config) {
   if (_charts[id]) { _charts[id].destroy(); }
@@ -1170,16 +1242,46 @@ function renderDashboard() {
   const acumData = days.map(d => { acum += (byDay[d]||0); return acum; });
   const metaData = days.map((_,i) => Math.round(metaDiaria * (i+1) * 100)/100);
 
+  // Painel resumo do card "Receita Acumulada vs Meta"
+  const realizadoHoje = acumData[Math.min(diaAtual - 1, acumData.length - 1)] || 0;
+  const metaHoje = metaData[Math.min(diaAtual - 1, metaData.length - 1)] || 0;
+  const pctVsMetaHoje = metaHoje > 0 ? (realizadoHoje / metaHoje * 100) : 0;
+  const acumRealEl = document.getElementById('acumRealizadoVal');
+  const acumMetaHojeEl = document.getElementById('acumMetaHojeVal');
+  const acumMetaTotalEl = document.getElementById('acumMetaTotalVal');
+  const acumBarEl = document.getElementById('acumBarRealizado');
+  const acumStatusEl = document.getElementById('acumStatusLabel');
+  if (acumRealEl) acumRealEl.innerHTML = BRL(realizadoHoje);
+  if (acumMetaHojeEl) acumMetaHojeEl.innerHTML = BRL(metaHoje);
+  if (acumMetaTotalEl) acumMetaTotalEl.innerHTML = BRL(meta.receita||0);
+  if (acumBarEl) {
+    const pctBar = Math.min(pctVsMetaHoje, 100);
+    acumBarEl.style.width = pctBar + '%';
+    acumBarEl.className = 'progress-fill' + (pctVsMetaHoje >= 100 ? ' green' : pctVsMetaHoje >= 80 ? '' : ' amber');
+  }
+  if (acumStatusEl) {
+    if (pctVsMetaHoje >= 100) { acumStatusEl.textContent = `✅ ${pctVsMetaHoje.toFixed(0)}% da meta esperada`; acumStatusEl.style.color = 'var(--green)'; }
+    else if (pctVsMetaHoje >= 80) { acumStatusEl.textContent = `🟡 ${pctVsMetaHoje.toFixed(0)}% da meta esperada`; acumStatusEl.style.color = 'var(--amber)'; }
+    else { acumStatusEl.textContent = `🔴 ${pctVsMetaHoje.toFixed(0)}% da meta esperada`; acumStatusEl.style.color = 'var(--red)'; }
+  }
+
   mkChart('chartAcumulado', {
     type: 'line',
     data: {
       labels: days.map(d => d.split('-')[2]),
       datasets: [
-        { label:'Realizado', data: acumData, borderColor:'#e8546a', backgroundColor:'rgba(232,84,106,0.08)', borderWidth:2, pointRadius:2, tension:0.3, fill:true },
-        { label:'Meta', data: metaData, borderColor:'#9a8890', borderWidth:1.5, borderDash:[5,4], pointRadius:0, tension:0.3 },
+        { label:'Realizado', data: acumData, borderColor:'#e8546a', backgroundColor:'rgba(232,84,106,0.1)', borderWidth:2.5, pointRadius:0, tension:0.3, fill:true },
+        { label:'Meta', data: metaData, borderColor:'#c9bcb8', borderWidth:1.5, borderDash:[4,3], pointRadius:0, tension:0.3 },
       ]
     },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}} }, scales:{ x:{ticks:{font:{size:10},maxTicksLimit:10}}, y:{ticks:{font:{size:10},callback:v=>'R$'+v.toLocaleString('pt-BR')}} } }
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ ticks:{font:{size:9},maxTicksLimit:8}, grid:{display:false} },
+        y:{ ticks:{font:{size:9},maxTicksLimit:4,callback:v=>'R$'+(v/1000).toFixed(0)+'k'}, grid:{color:'#f5ebe0'} }
+      }
+    }
   });
 
   const dayLabels = Object.keys(byDay).sort();
@@ -1205,10 +1307,29 @@ function renderDashboard() {
   const origemKeys = Object.keys(byOrigem).sort((a,b) => byOrigem[b]-byOrigem[a]);
   const origemColors = ['#e8546a','#3dab7a','#f0a030','#4a7fc1','#a855f7','#ec4899'];
 
+  const totalOrigem = origemKeys.reduce((s,k) => s + byOrigem[k], 0) || 1;
+  const origemPercents = origemKeys.map(k => (byOrigem[k]/totalOrigem*100));
+
   mkChart('chartOrigem', {
     type: 'doughnut',
-    data: { labels: origemKeys, datasets: [{ data: origemKeys.map(k=>byOrigem[k]), backgroundColor: origemColors, borderWidth:2, borderColor:'#fff' }] },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom',labels:{font:{size:10},boxWidth:10}} } }
+    data: {
+      labels: origemKeys.map((k,i) => `${k} (${origemPercents[i].toFixed(0)}%)`),
+      datasets: [{ data: origemKeys.map(k=>byOrigem[k]), backgroundColor: origemColors, borderWidth:2, borderColor:'#fff' }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:10},boxWidth:10}},
+        tooltip:{
+          callbacks:{
+            label: (ctx) => {
+              const pct = origemPercents[ctx.dataIndex].toFixed(1);
+              return `${origemKeys[ctx.dataIndex]}: ${BRL_RAW(ctx.raw)} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
   });
 
   const byProd = {};
@@ -1268,6 +1389,7 @@ function quickStatus(id, sel) {
   const v = vendas.find(x=>x.id===id);
   if (!v) return;
   const eraFinalizado = v.status === 'finalizado';
+  const snapshot = { status: v.status, valorPago: v.valorPago, dataFinalizacao: v.dataFinalizacao };
   v.status = sel.value;
 
   // Ao marcar como Enviado: se já pagou tudo, finaliza automaticamente
@@ -1287,10 +1409,19 @@ function quickStatus(id, sel) {
     if (!eraFinalizado && !v.dataFinalizacao) v.dataFinalizacao = today();
   }
 
+  pushUndo({
+    label: 'mudança de status',
+    undo: () => {
+      v.status = snapshot.status;
+      v.valorPago = snapshot.valorPago;
+      v.dataFinalizacao = snapshot.dataFinalizacao;
+    },
+    remoteUndo: () => saveVendaRemote(v),
+  });
   sel.className = `status-select s-${statusClass(sel.value)}`;
   save(); saveVendaRemote(v);
   updateTarefasBadge();
-  if (v.status !== 'finalizado') showToast('Status atualizado ✓','success');
+  if (v.status !== 'finalizado') showToast('Status atualizado ✓ (Ctrl+Z p/ desfazer)','success');
 }
 
 function rowHtml(v) {
@@ -1415,8 +1546,17 @@ function editVenda(id) {
 
 function deleteVenda(id) {
   if (!confirm('Excluir esta venda?')) return;
+  const removed = vendas.find(v => v.id === id);
+  const idx = vendas.findIndex(v => v.id === id);
   vendas = vendas.filter(v=>v.id!==id);
-  save(); deleteVendaRemote(id); showToast('Venda excluída','error'); renderPage(currentPage);
+  if (removed) {
+    pushUndo({
+      label: 'exclusão de venda',
+      undo: () => { vendas.splice(idx, 0, removed); },
+      remoteUndo: () => saveVendaRemote(removed),
+    });
+  }
+  save(); deleteVendaRemote(id); showToast('Venda excluída (Ctrl+Z para desfazer)','error'); renderPage(currentPage);
 }
 
 function saveVenda() {
@@ -1567,15 +1707,31 @@ function addFluxo() {
 
 function deleteFluxo(id) {
   if (!confirm('Excluir transação?')) return;
-  fluxo = fluxo.filter(f=>f.id!==id); save(); saveFluxoRemote(); renderFluxo();
+  const removed = fluxo.find(f => f.id === id);
+  const idx = fluxo.findIndex(f => f.id === id);
+  fluxo = fluxo.filter(f=>f.id!==id);
+  if (removed) {
+    pushUndo({
+      label: 'exclusão de transação',
+      undo: () => { fluxo.splice(idx, 0, removed); },
+      remoteUndo: () => saveFluxoRemote(),
+    });
+  }
+  save(); saveFluxoRemote(); showToast('Transação excluída (Ctrl+Z para desfazer)','error'); renderFluxo();
 }
 
 function pagarConta(id) {
   const f = fluxo.find(x => x.id === id);
   if (f) {
+    const prevStatus = f.status;
     f.status = 'pago';
+    pushUndo({
+      label: 'efetivação de pagamento',
+      undo: () => { f.status = prevStatus; },
+      remoteUndo: () => saveFluxoRemote(),
+    });
     save(); saveFluxoRemote();
-    showToast('Pagamento efetivado!', 'success');
+    showToast('Pagamento efetivado! (Ctrl+Z p/ desfazer)', 'success');
     renderTarefas(); renderFluxo(); renderDashboard();
   }
 }
@@ -1917,17 +2073,26 @@ function selecionarTodosPgPendente() {
 function finalizarSelecionados() {
   if (massaSelecionados.size === 0) return;
   const count = massaSelecionados.size;
+  const snapshots = [];
   massaSelecionados.forEach(id => {
     const v = vendas.find(x => x.id === id);
     if (!v) return;
+    snapshots.push({ v, status: v.status, valorPago: v.valorPago, dataFinalizacao: v.dataFinalizacao });
     v.status = 'finalizado';
     if (!v.valorPago || parseFloat(v.valorPago) < parseFloat(v.valorProd)) v.valorPago = v.valorProd;
     if (!v.dataFinalizacao) v.dataFinalizacao = today();
     saveVendaRemote(v);
   });
+  pushUndo({
+    label: `finalização em massa (${count} pedidos)`,
+    undo: () => {
+      snapshots.forEach(s => { s.v.status = s.status; s.v.valorPago = s.valorPago; s.v.dataFinalizacao = s.dataFinalizacao; });
+    },
+    remoteUndo: () => { snapshots.forEach(s => saveVendaRemote(s.v)); },
+  });
   massaSelecionados.clear();
   save();
-  showToast(`${count} pedido(s) finalizados ✓`, 'success');
+  showToast(`${count} pedido(s) finalizados ✓ (Ctrl+Z p/ desfazer)`, 'success');
   updateTarefasBadge();
   renderTarefas();
   if (['dashboard','vendas'].includes(currentPage)) renderPage(currentPage);
