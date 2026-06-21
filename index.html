@@ -27,9 +27,39 @@
     --purple: #7c3aed; --purple-light: #ede9fe;
     --shadow-lg: 0 8px 32px rgba(26,18,20,0.12);
     --radius: 14px; --radius-sm: 8px;
+    --surface: #fff; --surface-2: var(--cream);
   }
+
+  /* MODO NOTURNO */
+  body.dark {
+    --cream: #15131a; --warm: #1f1c26; --ink: #f0ece8;
+    --ink-light: #c9c0ba; --ink-muted: #8a8088;
+    --border: #2e2933;
+    --surface: #1c1922; --surface-2: #211d28;
+    --rose-light: #3a212a; --green-light: #16332a; --amber-light: #332a14;
+    --blue-light: #1c2738; --purple-light: #2a2138;
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  body.dark .card, body.dark .modal, body.dark .topbar,
+  body.dark .tarefas-filter-bar, body.dark .massa-toolbar,
+  body.dark input, body.dark select, body.dark textarea,
+  body.dark .tarefa-card, body.dark .status-select,
+  body.dark .filter-chip, body.dark .tarefas-chip, body.dark .page-btn {
+    background: var(--surface); color: var(--ink); border-color: var(--border);
+  }
+  body.dark th { background: var(--surface-2); }
+  body.dark tr:hover td { background: var(--surface-2); }
+  body.dark .login-box, body.dark #loginOverlay > div { background: var(--surface) !important; }
+  body.dark .btn-ghost { background: transparent; }
+  body.dark .search-input, body.dark .massa-toolbar { background: var(--surface); }
+  body.dark .kpi-card, body.dark .saldo-box { background: var(--surface); }
+  body.dark #loginOverlay { background: var(--cream); }
+  body.dark .nav-alert { color: #fff; }
+  body.dark .sidebar { background: #0d0c10; }
+  .btn-theme { font-size:16px; padding:7px 10px; line-height:1; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--ink); min-height: 100vh; display: flex; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--ink); min-height: 100vh; display: flex; transition: background 0.25s, color 0.25s; }
+  body, body * { transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
 
   /* SIDEBAR */
   .sidebar { width: 230px; background: var(--ink); min-height: 100vh; position: fixed; left:0; top:0; display:flex; flex-direction:column; padding:28px 0 20px; z-index:100; }
@@ -391,6 +421,7 @@
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="topbar-right">
       <span id="fbStatus" style="display:none;font-size:12px;color:var(--amber);font-weight:500;padding:4px 10px;background:var(--amber-light);border-radius:20px"></span>
+      <button class="btn btn-ghost btn-sm btn-theme" id="btnToggleTheme" onclick="toggleTheme()" title="Modo noturno">🌙</button>
       <button class="btn btn-ghost btn-sm" id="btnUndo" onclick="performUndo()" title="Desfazer última ação (Ctrl+Z)" style="opacity:0.4">↩ Desfazer</button>
       <button class="btn btn-ghost btn-sm btn-eye" id="btnOcultarValores" onclick="toggleOcultarValores()" title="Ocultar/mostrar valores">👁</button>
       <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV</button>
@@ -777,6 +808,25 @@
   </div>
 </div>
 
+<!-- AVISO DE VENDA DUPLICADA -->
+<div class="modal-overlay" id="modalDuplicada">
+  <div class="modal" style="width:440px;">
+    <div class="modal-header">
+      <span class="modal-title">⚠️ Possível duplicata</span>
+      <button class="modal-close" onclick="cancelarSalvarDuplicada()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13.5px;color:var(--ink-light);margin-bottom:14px;">Já existe uma venda com o mesmo contato, data, produto e valor:</p>
+      <div id="duplicadaInfo" style="background:var(--cream);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;font-size:13.5px;"></div>
+      <p style="font-size:12.5px;color:var(--ink-muted);margin-top:14px;">Deseja salvar mesmo assim?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cancelarSalvarDuplicada()">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarSalvarDuplicada()">Salvar Mesmo Assim</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div id="loadingOverlay" style="position:fixed;inset:0;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px">
@@ -1070,6 +1120,14 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+function chartThemeColors() {
+  const dark = document.body.classList.contains('dark');
+  return {
+    text: dark ? '#c9c0ba' : '#9a8890',
+    grid: dark ? '#2e2933' : '#f5ebe0',
+  };
+}
+
 let _charts = {};
 function mkChart(id, config) {
   if (_charts[id]) { _charts[id].destroy(); }
@@ -1362,8 +1420,8 @@ function renderDashboard() {
         }
       },
       scales:{
-        x:{ ticks:{font:{size:9},maxTicksLimit:8}, grid:{display:false} },
-        y:{ ticks:{font:{size:9},maxTicksLimit:4,callback:v=>'R$'+(v/1000).toFixed(0)+'k'}, grid:{color:'#f5ebe0'} }
+        x:{ ticks:{font:{size:9},color:chartThemeColors().text,maxTicksLimit:8}, grid:{display:false} },
+        y:{ ticks:{font:{size:9},color:chartThemeColors().text,maxTicksLimit:4,callback:v=>'R$'+(v/1000).toFixed(0)+'k'}, grid:{color:chartThemeColors().grid} }
       }
     }
   });
@@ -1379,7 +1437,7 @@ function renderDashboard() {
       labels: dayLabels.map(d => d.split('-')[2] + '/' + d.split('-')[1]),
       datasets: [{ label:'Faturamento', data: dayValues, backgroundColor: barColors, borderRadius:4 }]
     },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:10}}}, y:{ticks:{font:{size:10},callback:v=>'R$'+v}} } }
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:10},color:chartThemeColors().text}}, y:{ticks:{font:{size:10},color:chartThemeColors().text,callback:v=>'R$'+v}} } }
   });
 
   const byOrigem = {};
@@ -1643,7 +1701,19 @@ function deleteVenda(id) {
   save(); deleteVendaRemote(id); showToast('Venda excluída (Ctrl+Z para desfazer)','error'); renderPage(currentPage);
 }
 
-function saveVenda() {
+/** Verifica se já existe uma venda com dados idênticos (contato, data, produto, valor) */
+function encontrarVendaDuplicada(v, ignorarId) {
+  return vendas.find(x =>
+    x.id !== ignorarId &&
+    x.status !== 'cancelado' &&
+    (x.contato||'').trim().toLowerCase() === (v.contato||'').trim().toLowerCase() &&
+    x.data === v.data &&
+    (x.produto||'').trim().toLowerCase() === (v.produto||'').trim().toLowerCase() &&
+    parseFloat(x.valorProd||0) === parseFloat(v.valorProd||0)
+  );
+}
+
+function saveVenda(forcarSalvar=false) {
   const status = document.getElementById('vStatus').value;
   const valorProd = parseFloat(document.getElementById('vValorProd').value)||0;
   const valorPagoInput = parseFloat(document.getElementById('vValorPago').value)||0;
@@ -1671,9 +1741,38 @@ function saveVenda() {
   if (!v.contato) { showToast('Preencha o contato','error'); return; }
   if (!v.data) { showToast('Preencha a data','error'); return; }
 
+  // Detecção de duplicata (pula se já confirmou)
+  if (!forcarSalvar) {
+    const duplicada = encontrarVendaDuplicada(v, vendaEditId);
+    if (duplicada) {
+      abrirAvisoDuplicada(duplicada, v);
+      return;
+    }
+  }
+
   if (vendaEditId) { vendas[vendas.findIndex(x=>x.id===vendaEditId)] = v; showToast('Venda atualizada ✓','success'); }
   else { vendas.unshift(v); showToast('Venda salva ✓','success'); }
   save(); saveVendaRemote(v); closeModal('modalVenda'); renderPage(currentPage);
+}
+
+let _vendaPendenteDuplicada = null;
+function abrirAvisoDuplicada(duplicada, novaVenda) {
+  _vendaPendenteDuplicada = novaVenda;
+  document.getElementById('duplicadaInfo').innerHTML = `
+    <strong>${duplicada.contato}</strong> · ${duplicada.data.split('-').reverse().join('/')} · ${duplicada.produto||'—'} · ${BRL_RAW(duplicada.valorProd)}
+    <br><span style="color:var(--ink-muted);font-size:12px;">Status atual: ${duplicada.status}</span>`;
+  document.getElementById('modalDuplicada').classList.add('open');
+}
+
+function confirmarSalvarDuplicada() {
+  document.getElementById('modalDuplicada').classList.remove('open');
+  saveVenda(true);
+  _vendaPendenteDuplicada = null;
+}
+
+function cancelarSalvarDuplicada() {
+  document.getElementById('modalDuplicada').classList.remove('open');
+  _vendaPendenteDuplicada = null;
 }
 
 // ============================================================
@@ -2057,7 +2156,32 @@ function initOcultarValores() {
     if (btn) { btn.textContent = '🙈'; btn.title = 'Mostrar valores'; }
   }
 }
-document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id);}));
+
+// ============================================================
+// MODO NOTURNO
+// ============================================================
+function toggleTheme() {
+  const dark = document.body.classList.toggle('dark');
+  LS.set('temaDark', dark);
+  const btn = document.getElementById('btnToggleTheme');
+  if (btn) { btn.textContent = dark ? '☀️' : '🌙'; btn.title = dark ? 'Modo claro' : 'Modo noturno'; }
+  // Re-renderiza charts para ajustar cores de grid/texto
+  if (typeof renderPage === 'function') renderPage(currentPage);
+}
+
+function initTheme() {
+  if (LS.get('temaDark', false)) {
+    document.body.classList.add('dark');
+    const btn = document.getElementById('btnToggleTheme');
+    if (btn) { btn.textContent = '☀️'; btn.title = 'Modo claro'; }
+  }
+}
+document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{
+  if(e.target===m){
+    if (m.id === 'modalDuplicada') cancelarSalvarDuplicada();
+    else closeModal(m.id);
+  }
+}));
 
 
 // ============================================================
@@ -2447,6 +2571,7 @@ async function init() {
   
   updateTarefasBadge();
   initOcultarValores();
+  initTheme();
   renderDashboard();
 }
 
@@ -2483,6 +2608,9 @@ function liberarAcesso() {
     });
   }, 300);
 }
+
+// Aplica tema imediatamente, mesmo antes do login
+if (LS.get('temaDark', false)) document.body.classList.add('dark');
 
 if (LS.get('logado', false)) {
   liberarAcesso();
