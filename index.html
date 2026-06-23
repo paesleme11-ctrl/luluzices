@@ -79,6 +79,8 @@
   /* MAIN */
   .main { margin-left:230px; flex:1; min-height:100vh; display:flex; flex-direction:column; }
   .topbar { background:#fff; border-bottom:1px solid var(--border); padding:18px 32px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; }
+  .topbar-left { display:flex; align-items:center; gap:10px; min-width:0; }
+  .btn-menu-mobile { display:none; }
   .page-title { font-family:'DM Serif Display',serif; font-size:22px; }
   .topbar-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
@@ -318,6 +320,13 @@
   .tarefa-dias-label { font-size:9px; text-transform:uppercase; letter-spacing:0.5px; }
   .tarefa-info { flex:1; }
   .tarefa-contato { font-weight:600; font-size:14.5px; }
+  .btn-copy-tel {
+    background:none; border:none; cursor:pointer; font-size:11px;
+    opacity:0.4; padding:2px 4px; border-radius:4px; vertical-align:middle;
+    transition:opacity 0.15s, background 0.15s;
+  }
+  .btn-copy-tel:hover { opacity:1; background:var(--warm); }
+  .btn-copy-tel:active { transform:scale(0.92); }
   .tarefa-produto { font-size:12.5px; color:var(--ink-muted); margin-top:2px; }
   .tarefa-meta { display:flex; gap:10px; margin-top:6px; flex-wrap:wrap; }
   .tarefa-chip { font-size:11px; padding:2px 8px; border-radius:4px; font-weight:500; }
@@ -377,8 +386,6 @@
    RESPONSIVIDADE MOBILE — sistema completo
    ============================================================ */
 @media (max-width: 768px) {
-  /* Menu hambúrguer */
-  #menuToggle { display: block !important; top: max(15px, env(safe-area-inset-top)); }
   body { padding-bottom: env(safe-area-inset-bottom); }
   .sidebar {
     position: fixed; left: -240px; transition: 0.3s; z-index: 1000;
@@ -394,15 +401,28 @@
   }
   .sidebar-overlay.active { display: block; }
 
-  /* Topbar mais compacta, com espaço pro botão de menu */
-  .topbar { padding: 14px 16px 14px 60px; flex-wrap: wrap; gap: 8px; }
-  .page-title { font-size: 18px; }
+  /* Botão de menu agora fica dentro do fluxo do topbar, ao lado do título */
+  .btn-menu-mobile {
+    display: flex !important; align-items:center; justify-content:center;
+    width: 38px; height: 38px; flex-shrink: 0;
+    background: var(--rose); color: #fff; border: none; border-radius: 10px;
+    font-size: 18px; cursor: pointer;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+  /* Topbar mais compacta */
+  .topbar { padding: 12px 14px; flex-wrap: wrap; gap: 10px; }
+  .page-title { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .topbar-right { gap: 6px; width: 100%; justify-content: flex-end; }
   .topbar-right .btn-sm { padding: 8px; font-size: 14px; min-width: 36px; justify-content: center; }
   .topbar-right .btn-secundario .btn-text { display: none; }
 
   /* Conteúdo das páginas com padding reduzido */
-  .page { padding: 14px; }
+  .page { padding: 12px; }
+
+  /* Reduz espaçamento entre seções/cards no mobile p/ mais densidade */
+  .card, .grid-2, .grid-3, .grid-charts-tres, .saldo-boxes,
+  .tarefas-header, .tarefas-filter-bar, .kpi-grid { margin-bottom: 12px !important; }
 
   /* KPIs em coluna única, cards compactos */
   .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
@@ -455,6 +475,7 @@
   .tarefa-actions { order: 3; width: 100%; flex-wrap: wrap; }
   .tarefa-actions .status-select { flex: 1; min-width: 120px; }
   .tarefa-actions .btn { min-height: 40px; }
+  .btn-copy-tel { opacity:0.6; font-size:13px; padding:4px 6px; }
   .tarefas-header { padding: 18px 20px; flex-wrap: wrap; gap: 12px; }
   .tarefas-header h2 { font-size: 19px; }
   .tarefas-count { font-size: 36px; }
@@ -473,8 +494,11 @@
   .pagination { flex-wrap: wrap; gap: 4px; }
   .page-btn { min-width: 32px; min-height: 32px; padding: 4px 8px; }
 
-  /* Gráficos: altura reduzida pra não dominar a tela */
-  #chartAcumulado, #chartDia, #chartOrigem, #chartProdutos { max-height: 180px; }
+  /* Gráficos: altura ajustada pra caber legenda sem cortar */
+  #chartAcumulado { max-height: 160px; }
+  #chartDia, #chartProdutos { max-height: 220px; }
+  #chartOrigem { max-height: 200px; }
+  .grid-charts-tres .card-body[style*="height:200px"] { height: 260px !important; }
 
   /* Login: padding e fonte ajustados */
   #loginOverlay > div { padding: 28px 24px; width: 88%; }
@@ -493,10 +517,6 @@
 </style>
 </head>
 <body>
-  <button id="menuToggle" onclick="toggleSidebar()"
-        style="display:none; position:fixed; top:15px; left:15px; z-index:1001; background:var(--rose); color:white; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
-  ☰ Menu
-</button>
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <div id="loginOverlay" style="position:fixed;inset:0;background:var(--cream);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.3s">
@@ -530,7 +550,10 @@
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title" id="pageTitle">Dashboard</div>
+    <div class="topbar-left">
+      <button id="menuToggleInline" class="btn-menu-mobile" onclick="toggleSidebar()" style="display:none;">☰</button>
+      <div class="page-title" id="pageTitle">Dashboard</div>
+    </div>
     <div class="topbar-right">
       <span id="fbStatus" style="display:none;font-size:12px;color:var(--amber);font-weight:500;padding:4px 10px;background:var(--amber-light);border-radius:20px"></span>
       <button class="btn btn-ghost btn-sm btn-theme" id="btnToggleTheme" onclick="toggleTheme()" title="Modo noturno">🌙</button>
@@ -1175,6 +1198,29 @@ function showToast(msg, type='') {
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = 'toast show ' + type;
   setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function copiarTelefone(numero) {
+  const limpo = numero.trim();
+  const fazerFallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = limpo;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Número copiado 📋', 'success'); }
+    catch { showToast('Não foi possível copiar', 'error'); }
+    document.body.removeChild(ta);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(limpo).then(
+      () => showToast('Número copiado 📋', 'success'),
+      fazerFallback
+    );
+  } else {
+    fazerFallback();
+  }
 }
 
 // ============================================================
@@ -2541,7 +2587,7 @@ function renderTarefas() {
           ${diasBadgeContent}
         </div>
         <div class="tarefa-info">
-          <div class="tarefa-contato">🛍️ ${v.contato||'—'} ${persTag}${pgPendAuto}</div>
+          <div class="tarefa-contato">🛍️ ${v.contato||'—'} ${v.contato ? `<button class="btn-copy-tel" onclick="event.stopPropagation();copiarTelefone('${v.contato.replace(/'/g,"\\'")}')" title="Copiar número">📋</button>` : ''} ${persTag}${pgPendAuto}</div>
           <div class="tarefa-produto">${v.produto||'—'}</div>
           <div class="tarefa-meta">
             <span class="tarefa-chip fonte-badge fonte-${fonteClass(v.fonte)}">${v.fonte||'—'}</span>
