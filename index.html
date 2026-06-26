@@ -888,7 +888,7 @@
           <input type="number" id="vValorProd" step="0.01" min="0" placeholder="0,00" oninput="autoSinal()">
         </div>
         <div class="form-group"><label>Sinal Pago (R$)</label>
-          <input type="number" id="vSinal" step="0.01" min="0" placeholder="0,00" oninput="autoValorPago()">
+          <input type="number" id="vSinal" step="0.01" min="0" placeholder="0,00" oninput="onSinalManualEdit()">
         </div>
       </div>
       <div class="form-row cols-2">
@@ -1804,6 +1804,8 @@ function openModalVenda(v=null) {
   document.getElementById('vSinal').value = v?.sinal || '';
   document.getElementById('vValorPago').value = v?.valorPago || '';
   document.getElementById('vObs').value = v?.obs || '';
+  // Nova venda: sinal começa sob controle automático. Edição: respeita o valor já salvo.
+  resetSinalAuto(!!(v && v.sinal));
   document.getElementById('modalVenda').classList.add('open');
 }
 
@@ -1828,15 +1830,31 @@ function autoValorPago() {
   if (status !== 'finalizado') { document.getElementById('vValorPago').value = document.getElementById('vSinal').value; }
 }
 
+let _sinalAutoPreenchido = true; // controla se o sinal ainda está sob controle automático
 function autoSinal() {
   const v = parseFloat(document.getElementById('vValorProd').value)||0;
   const status = document.getElementById('vStatus').value;
-  if (!document.getElementById('vSinal').value && v > 0) {
+  const sinalEl = document.getElementById('vSinal');
+
+  // Recalcula o sinal enquanto ele ainda estiver "sob controle automático"
+  // (ou seja, o usuário não editou manualmente o campo Sinal)
+  if (_sinalAutoPreenchido && v > 0) {
     const calc = (v/2).toFixed(2);
-    document.getElementById('vSinal').value = calc;
+    sinalEl.value = calc;
     if (status !== 'finalizado') document.getElementById('vValorPago').value = calc;
   }
   if (status === 'finalizado' && v > 0) { document.getElementById('vValorPago').value = v.toFixed(2); }
+}
+
+// Quando o usuário edita o Sinal manualmente, para de recalcular automático
+function onSinalManualEdit() {
+  _sinalAutoPreenchido = false;
+  autoValorPago();
+}
+
+// Reseta o controle automático ao abrir o modal (nova venda ou edição)
+function resetSinalAuto(valorJaPreenchido) {
+  _sinalAutoPreenchido = !valorJaPreenchido;
 }
 
 function editVenda(id) {
