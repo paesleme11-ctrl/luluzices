@@ -46,9 +46,11 @@
   body.dark .tarefas-filter-bar, body.dark .massa-toolbar,
   body.dark input, body.dark select, body.dark textarea,
   body.dark .tarefa-card, body.dark .status-select,
-  body.dark .filter-chip, body.dark .tarefas-chip, body.dark .page-btn {
+  body.dark .filter-chip, body.dark .tarefas-chip, body.dark .page-btn,
+  body.dark .produto-sugestoes {
     background: var(--surface); color: var(--ink); border-color: var(--border);
   }
+  body.dark .produto-sugestao-item:hover { background: var(--surface-2); }
   body.dark th { background: var(--surface-2); }
   body.dark tr:hover td { background: var(--surface-2); }
   body.dark .login-box, body.dark #loginOverlay > div { background: var(--surface) !important; }
@@ -171,6 +173,21 @@
   .form-row.cols-2 { grid-template-columns:1fr 1fr; }
   .form-row.cols-3 { grid-template-columns:1fr 1fr 1fr; }
   .form-group { display:flex; flex-direction:column; gap:5px; }
+
+  /* AUTOCOMPLETE DE PRODUTOS */
+  .produto-sugestoes {
+    display:none; position:absolute; top:100%; left:0; right:0; z-index:50;
+    background:#fff; border:1.5px solid var(--rose); border-radius:var(--radius-sm);
+    box-shadow:var(--shadow-lg); max-height:220px; overflow-y:auto; margin-top:4px;
+  }
+  .produto-sugestoes.open { display:block; }
+  .produto-sugestao-item {
+    padding:10px 14px; font-size:13.5px; cursor:pointer; color:var(--ink);
+    border-bottom:1px solid var(--border); transition:background 0.1s;
+  }
+  .produto-sugestao-item:last-child { border-bottom:none; }
+  .produto-sugestao-item:hover { background:var(--rose-light); }
+  .produto-sugestao-item strong { color:var(--rose); font-weight:700; }
   label { font-size:12px; font-weight:600; color:var(--ink-light); text-transform:uppercase; letter-spacing:0.6px; }
   input, select, textarea { font-family:'DM Sans',sans-serif; font-size:14px; padding:10px 13px; border:1.5px solid var(--border); border-radius:var(--radius-sm); color:var(--ink); background:#fff; transition:border-color 0.15s; outline:none; }
   input:focus, select:focus, textarea:focus { border-color:var(--rose); }
@@ -907,29 +924,12 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Produto(s)</label>
-          <select id="vProdutoSelect" onchange="onProdutoSelect()">
-            <option value="">— Selecionar produto —</option>
-            <option value="interativo animado">Interativo Animado</option>
-            <option value="interativo tradicional">Interativo Tradicional</option>
-            <option value="cinematográfico">Cinematográfico</option>
-            <option value="infinito">Infinito</option>
-            <option value="combo">Combo</option>
-            <option value="filtro">Filtro</option>
-            <option value="lembrete/save">Lembrete/Save</option>
-            <option value="personalização">Personalização</option>
-            <option value="forms">Forms</option>
-            <option value="urgência">Urgência</option>
-            <option value="casamento">Casamento</option>
-            <option value="interativo pra casamento">Interativo p/ Casamento</option>
-            <option value="interativo debutante">Interativo Debutante</option>
-            <option value="mascotinho">Mascotinho</option>
-            <option value="realista">Realista</option>
-            <option value="artes">Artes</option>
-            <option value="animado">Animado</option>
-            <option value="personalizado">✏️ Pedido Personalizado</option>
-          </select>
-          <input type="text" id="vProduto" placeholder="Produto(s) — ex: interativo animado, personalização" style="margin-top:6px">
+        <div class="form-group" style="position:relative;">
+          <label>Produto(s)</label>
+          <input type="text" id="vProduto" placeholder="Digite p/ buscar — ex: interativo animado, personalização" autocomplete="off"
+                 oninput="onProdutoInput()" onfocus="onProdutoInput()" onblur="setTimeout(fecharSugestoesProduto, 150)"
+                 onkeydown="onProdutoKeydown(event)">
+          <div id="produtoSugestoes" class="produto-sugestoes"></div>
         </div>
       </div>
       <div class="form-row">
@@ -1800,7 +1800,6 @@ function openModalVenda(v=null) {
   document.getElementById('vFonte').value = v?.fonte || 'tráfego pago';
   document.getElementById('vValorProd').value = v?.valorProd || '';
   document.getElementById('vProduto').value = v?.produto || '';
-  document.getElementById('vProdutoSelect').value = '';
   document.getElementById('vSinal').value = v?.sinal || '';
   document.getElementById('vValorPago').value = v?.valorPago || '';
   document.getElementById('vObs').value = v?.obs || '';
@@ -1817,12 +1816,69 @@ function onStatusChange() {
   }
 }
 
-function onProdutoSelect() {
-  const sel = document.getElementById('vProdutoSelect').value;
-  if (!sel) return;
-  const cur = document.getElementById('vProduto').value.trim();
-  document.getElementById('vProduto').value = cur ? cur + ', ' + sel : sel;
-  document.getElementById('vProdutoSelect').value = '';
+// ============================================================
+// AUTOCOMPLETE DE PRODUTOS
+// ============================================================
+const CATALOGO_PRODUTOS = [
+  'Interativo Animado', 'Interativo Tradicional', 'Cinematográfico', 'Infinito',
+  'Combo', 'Filtro', 'Lembrete/Save', 'Personalização', 'Forms', 'Urgência',
+  'Casamento', 'Interativo p/ Casamento', 'Interativo Debutante', 'Mascotinho',
+  'Realista', 'Artes', 'Animado', '✏️ Pedido Personalizado',
+];
+
+/** Retorna o termo de busca atual: o que está sendo digitado após a última vírgula */
+function getTermoAtualProduto() {
+  const valor = document.getElementById('vProduto').value;
+  const partes = valor.split(',');
+  return partes[partes.length - 1].trim();
+}
+
+function onProdutoInput() {
+  const termo = getTermoAtualProduto().toLowerCase();
+  const sugestoesEl = document.getElementById('produtoSugestoes');
+  if (!termo) { sugestoesEl.innerHTML = ''; sugestoesEl.classList.remove('open'); return; }
+
+  // Busca produtos cujo nome contenha o termo digitado (em qualquer posição)
+  const matches = CATALOGO_PRODUTOS.filter(p => p.toLowerCase().includes(termo));
+
+  if (matches.length === 0) { sugestoesEl.innerHTML = ''; sugestoesEl.classList.remove('open'); return; }
+
+  sugestoesEl.innerHTML = matches.map(p => {
+    // Destaca a parte que combina com o termo digitado
+    const idx = p.toLowerCase().indexOf(termo);
+    const antes = p.slice(0, idx);
+    const meio = p.slice(idx, idx + termo.length);
+    const depois = p.slice(idx + termo.length);
+    return `<div class="produto-sugestao-item" onmousedown="selecionarProdutoSugerido('${p.replace(/'/g,"\\'")}')">${antes}<strong>${meio}</strong>${depois}</div>`;
+  }).join('');
+  sugestoesEl.classList.add('open');
+}
+
+function selecionarProdutoSugerido(produto) {
+  const campo = document.getElementById('vProduto');
+  const valor = campo.value;
+  const partes = valor.split(',');
+  partes[partes.length - 1] = ' ' + produto; // substitui o termo em digitação pelo produto escolhido
+  let novoValor = partes.map(p => p.trim()).filter(Boolean).join(', ');
+  campo.value = novoValor + ', '; // deixa pronto para adicionar outro produto
+  fecharSugestoesProduto();
+  campo.focus();
+}
+
+function fecharSugestoesProduto() {
+  const el = document.getElementById('produtoSugestoes');
+  if (el) { el.innerHTML = ''; el.classList.remove('open'); }
+}
+
+function onProdutoKeydown(e) {
+  const sugestoesEl = document.getElementById('produtoSugestoes');
+  if (!sugestoesEl.classList.contains('open')) return;
+  if (e.key === 'Escape') { fecharSugestoesProduto(); return; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const primeiro = sugestoesEl.querySelector('.produto-sugestao-item');
+    if (primeiro) primeiro.dispatchEvent(new MouseEvent('mousedown'));
+  }
 }
 
 function autoValorPago() {
