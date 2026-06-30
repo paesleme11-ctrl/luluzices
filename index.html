@@ -572,6 +572,7 @@
   </div>
   <div class="nav-section">Visão Geral</div>
   <div class="nav-item active" onclick="goTo('dashboard')"><span class="nav-icon">📊</span> Dashboard</div>
+  <div class="nav-item" onclick="goTo('anual')"><span class="nav-icon">📆</span> Dashboard Anual</div>
   <div class="nav-item" onclick="goTo('tarefas')"><span class="nav-icon">⚠️</span> Tarefas do Dia <span class="nav-alert" id="navAlertCount" style="display:none">0</span></div>
   <div class="nav-section">Operações</div>
   <div class="nav-item" onclick="goTo('vendas')"><span class="nav-icon">🛍️</span> Vendas</div>
@@ -833,6 +834,36 @@
   </div>
 
   <!-- APP: CONFIRMAÇÃO DE PRESENÇA -->
+  <!-- DASHBOARD ANUAL -->
+  <div class="page" id="page-anual">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;flex-wrap:wrap;">
+      <span style="font-size:12px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.8px;">📆 Ano:</span>
+      <select id="anualAnoFilter" onchange="renderDashboardAnual()" style="font-size:13.5px;padding:7px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-weight:500;color:var(--ink);outline:none;cursor:pointer;"></select>
+      <span id="anualIndicador" style="font-size:12px;color:var(--ink-muted);margin-left:auto;"></span>
+    </div>
+
+    <div class="kpi-grid" id="anualKpiGrid"></div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><span class="card-title">Faturamento Mensal</span></div>
+      <div class="card-body" style="height:240px;position:relative">
+        <canvas id="chartAnualMensal"></canvas>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><span class="card-title">Comparativo Trimestral</span></div>
+      <div class="card-body">
+        <div class="grid-2" id="anualTrimestresGrid" style="margin-bottom:0;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Projeção até o fim do ano</span></div>
+      <div class="card-body" id="anualProjecaoBody"></div>
+    </div>
+  </div>
+
   <div class="page" id="page-confirmacao">
     <div class="search-bar">
       <input class="search-input" type="text" id="searchConfirmacao" placeholder="🔍  Buscar pedido por nome do contato ou produto..." oninput="renderConfirmacaoPage()">
@@ -950,15 +981,12 @@
         <div class="form-group"><label>Valor Pago Total (R$)</label>
           <input type="number" id="vValorPago" step="0.01" min="0" placeholder="0,00">
         </div>
-        <div class="form-group"><label>Fonte do Lead</label>
-          <select id="vFonte">
-            <option value="tráfego pago">Tráfego Pago</option>
-            <option value="orgânico">Orgânico</option>
-            <option value="retorno">Retorno</option>
-            <option value="catálogo">Catálogo</option>
-            <option value="recorrente">Recorrente</option>
-            <option value="indicação">Indicação</option>
-          </select>
+        <div class="form-group" style="position:relative;">
+          <label>Fonte do Lead</label>
+          <input type="text" id="vFonte" placeholder="Digite p/ buscar — ex: tráfego, orgânico" autocomplete="off"
+                 oninput="onFonteInput()" onfocus="onFonteInput()" onblur="setTimeout(fecharSugestoesFonte, 150)"
+                 onkeydown="onFonteKeydown(event)">
+          <div id="fonteSugestoes" class="produto-sugestoes"></div>
         </div>
       </div>
       <div class="form-row">
@@ -1225,8 +1253,8 @@ setTimeout(() => {
 // ============================================================
 // NAVIGATION
 // ============================================================
-const PAGES = ['dashboard','tarefas','vendas','fluxo','confirmacao','metas'];
-const PAGE_TITLES = { dashboard:'Dashboard', tarefas:'Tarefas do Dia', vendas:'Vendas', fluxo:'Fluxo de Caixa', confirmacao:'Confirmação de Presença', metas:'Metas' };
+const PAGES = ['dashboard','anual','tarefas','vendas','fluxo','confirmacao','metas'];
+const PAGE_TITLES = { dashboard:'Dashboard', anual:'Dashboard Anual', tarefas:'Tarefas do Dia', vendas:'Vendas', fluxo:'Fluxo de Caixa', confirmacao:'Confirmação de Presença', metas:'Metas' };
 let currentPage = 'dashboard';
 
 function goTo(page) {
@@ -1238,13 +1266,14 @@ function goTo(page) {
   });
   document.getElementById('pageTitle').textContent = PAGE_TITLES[page];
   const btn = document.getElementById('topbarAction');
-  if (page === 'metas' || page === 'tarefas' || page === 'confirmacao') { btn.style.display = 'none'; }
+  if (page === 'metas' || page === 'tarefas' || page === 'confirmacao' || page === 'anual') { btn.style.display = 'none'; }
   else { btn.style.display = ''; btn.textContent = page === 'fluxo' ? '+ Transação' : '+ Nova Venda'; btn.onclick = page === 'fluxo' ? () => document.getElementById('fluxoDesc').focus() : openModalVenda; }
   renderPage(page);
 }
 
 function renderPage(p) {
   if (p === 'dashboard') renderDashboard();
+  if (p === 'anual') renderDashboardAnual();
   if (p === 'tarefas') renderTarefas();
   if (p === 'vendas') renderVendas();
   if (p === 'fluxo') renderFluxo();
@@ -1576,8 +1605,8 @@ function abrirModalConfirmacaoWpp(venda) {
 
   document.getElementById('confirmacaoNumero').value = numero;
   document.getElementById('confirmacaoMensagem').value = nome
-    ? `Quero confirminha minha presença no aniversário do/a ${nome}`
-    : 'Quero confirminha minha presença no aniversário do/a ';
+    ? `Quero confirmar minha presença no aniversário do/a ${nome}`
+    : 'Quero confirmar minha presença no aniversário do/a ';
   document.getElementById('confirmacaoLinkBox').style.display = 'none';
   document.getElementById('modalConfirmacaoWpp').classList.add('open');
   // Foca no campo de número se estiver vazio, pra facilitar digitação imediata
@@ -2053,6 +2082,186 @@ function quickStatus(id, sel) {
   if (v.status !== 'finalizado') showToast('Status atualizado ✓ (Ctrl+Z p/ desfazer)','success');
 }
 
+// ============================================================
+// DASHBOARD ANUAL — visão do ano com trimestres e projeção
+// ============================================================
+function initAnualAnoFilter() {
+  const sel = document.getElementById('anualAnoFilter');
+  if (!sel) return;
+  const { ano: anoAtual } = getMesAno();
+
+  const anosSet = new Set([anoAtual]);
+  vendas.forEach(v => { if (v.data) anosSet.add(parseInt(v.data.slice(0,4))); });
+  const anosSorted = [...anosSet].sort((a,b) => b - a);
+
+  const atual = sel.value || String(anoAtual);
+  sel.innerHTML = anosSorted.map(a => `<option value="${a}" ${String(a)===atual?'selected':''}>${a}</option>`).join('');
+}
+
+/** Calcula os totais de um mês específico do ano */
+function calcularMesAnual(ano, mes) {
+  const key = getMesKey(mes, ano);
+  const vm = getVendasMes(key).filter(v => v.status !== 'cancelado');
+  const vmCriados = getVendasMesCriados(key).filter(v => v.status !== 'cancelado');
+  const faturamento = getFaturamento(vm, key);
+  const pedidos = vmCriados.length;
+  const mesFluxo = fluxo.filter(f => (f.data||'').startsWith(key));
+  const custosOp = mesFluxo.filter(isCustoOp).reduce((s,f)=>s+f.valor, 0);
+  const lucro = faturamento - custosOp;
+  return { faturamento, pedidos, lucro, custosOp };
+}
+
+function renderDashboardAnual() {
+  initAnualAnoFilter();
+  const ano = parseInt(document.getElementById('anualAnoFilter')?.value) || getMesAno().ano;
+  const { mes: mesAtualReal, ano: anoAtualReal } = getMesAno();
+  const ehAnoAtual = ano === anoAtualReal;
+  const ultimoMesComDados = ehAnoAtual ? mesAtualReal : 11;
+
+  const ind = document.getElementById('anualIndicador');
+  if (ind) ind.innerHTML = ehAnoAtual
+    ? '<span style="color:var(--green);font-weight:600;">● Ano em andamento</span>'
+    : '<span style="color:var(--ink-muted);font-weight:600;">📅 Ano encerrado</span>';
+
+  // Calcula dados de cada mês do ano
+  const dadosMeses = [];
+  for (let m = 0; m < 12; m++) {
+    dadosMeses.push(calcularMesAnual(ano, m));
+  }
+
+  const totalFaturamento = dadosMeses.reduce((s,d) => s + d.faturamento, 0);
+  const totalPedidos = dadosMeses.reduce((s,d) => s + d.pedidos, 0);
+  const totalLucro = dadosMeses.reduce((s,d) => s + d.lucro, 0);
+  const ticketMedio = totalPedidos > 0 ? totalFaturamento / totalPedidos : 0;
+
+  // Meses já fechados (com dados reais) pra calcular médias de projeção
+  const mesesComDados = ehAnoAtual ? mesAtualReal + 1 : 12;
+  const mediaFatMensal = mesesComDados > 0 ? totalFaturamento / mesesComDados : 0;
+  const mesesRestantes = ehAnoAtual ? (11 - mesAtualReal) : 0;
+  const projecaoRestante = mediaFatMensal * mesesRestantes;
+  const projecaoTotalAno = totalFaturamento + projecaoRestante;
+
+  // KPIs
+  document.getElementById('anualKpiGrid').innerHTML = `
+    <div class="kpi-card" style="--kpi-color:var(--rose)">
+      <div class="kpi-label">Faturamento do Ano</div>
+      <div class="kpi-value">${BRL(totalFaturamento)}</div>
+      <div class="kpi-sub">${mesesComDados} mes(es) com dados</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--green)">
+      <div class="kpi-label">Total de Pedidos</div>
+      <div class="kpi-value">${totalPedidos}</div>
+      <div class="kpi-sub">Média de ${(totalPedidos/Math.max(mesesComDados,1)).toFixed(0)} pedidos/mês</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--amber)">
+      <div class="kpi-label">Ticket Médio Anual</div>
+      <div class="kpi-value">${BRL(ticketMedio)}</div>
+      <div class="kpi-sub">Considerando todo o ano</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--blue)">
+      <div class="kpi-label">Lucro Líquido do Ano</div>
+      <div class="kpi-value">${BRL(totalLucro)}</div>
+      <div class="kpi-sub">Receita − custos operacionais</div>
+    </div>`;
+
+  // Gráfico mensal
+  const corPrincipal = getCorPrincipalAtual();
+  const mesesLabels = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const dadosGrafico = dadosMeses.map((d,i) => (ehAnoAtual && i > mesAtualReal) ? null : d.faturamento);
+
+  mkChart('chartAnualMensal', {
+    type: 'bar',
+    data: {
+      labels: mesesLabels,
+      datasets: [{
+        label: 'Faturamento',
+        data: dadosGrafico,
+        backgroundColor: dadosMeses.map((d,i) => (i === mesAtualReal && ehAnoAtual) ? corPrincipal : hexParaRgba(corPrincipal, 0.5)),
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{ callbacks:{ label: (ctx) => `Faturamento: ${BRL_RAW(ctx.raw||0)}` } }
+      },
+      scales:{
+        x:{ ticks:{font:{size:10},color:chartThemeColors().text}, grid:{display:false} },
+        y:{ ticks:{font:{size:10},color:chartThemeColors().text,callback:v=>'R$'+(v/1000).toFixed(0)+'k'}, grid:{color:chartThemeColors().grid} }
+      }
+    }
+  });
+
+  // Comparativo Trimestral
+  const trimestres = [
+    { nome: '1º Trimestre', meses: [0,1,2], icone: '🌱' },
+    { nome: '2º Trimestre', meses: [3,4,5], icone: '☀️' },
+    { nome: '3º Trimestre', meses: [6,7,8], icone: '🍂' },
+    { nome: '4º Trimestre', meses: [9,10,11], icone: '❄️' },
+  ];
+
+  const trimGrid = document.getElementById('anualTrimestresGrid');
+  trimGrid.innerHTML = trimestres.map((trim, idx) => {
+    const dadosTrim = trim.meses.map(m => dadosMeses[m]);
+    const fatTrim = dadosTrim.reduce((s,d) => s + d.faturamento, 0);
+    const pedidosTrim = dadosTrim.reduce((s,d) => s + d.pedidos, 0);
+    const lucroTrim = dadosTrim.reduce((s,d) => s + d.lucro, 0);
+
+    // Compara com o trimestre anterior
+    let comparativoHtml = '';
+    if (idx > 0) {
+      const trimAnteriorMeses = trimestres[idx-1].meses.map(m => dadosMeses[m]);
+      const fatAnterior = trimAnteriorMeses.reduce((s,d) => s + d.faturamento, 0);
+      if (fatAnterior > 0) {
+        const variacao = ((fatTrim - fatAnterior) / fatAnterior * 100);
+        const cor = variacao >= 0 ? 'var(--green)' : 'var(--red)';
+        const seta = variacao >= 0 ? '↑' : '↓';
+        comparativoHtml = `<span style="color:${cor};font-weight:600;font-size:11px;">${seta} ${Math.abs(variacao).toFixed(0)}% vs trimestre anterior</span>`;
+      }
+    }
+
+    const trimEstaAtivo = ehAnoAtual && trim.meses.includes(mesAtualReal);
+    const trimFuturo = ehAnoAtual && trim.meses[0] > mesAtualReal;
+
+    return `
+      <div class="card" style="border:1.5px solid ${trimEstaAtivo ? 'var(--rose)' : 'var(--border)'};${trimFuturo?'opacity:0.5;':''}">
+        <div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-weight:700;font-size:14px;">${trim.icone} ${trim.nome}</span>
+            ${trimEstaAtivo ? '<span class="kpi-badge badge-neutral">Em andamento</span>' : ''}
+          </div>
+          <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--rose);margin-bottom:4px;">${BRL(fatTrim)}</div>
+          <div style="font-size:12px;color:var(--ink-muted);margin-bottom:6px;">${pedidosTrim} pedidos · Lucro: ${BRL(lucroTrim)}</div>
+          ${comparativoHtml}
+        </div>
+      </div>`;
+  }).join('');
+
+  // Projeção até o fim do ano
+  const projBody = document.getElementById('anualProjecaoBody');
+  if (!ehAnoAtual) {
+    projBody.innerHTML = `<p style="font-size:13.5px;color:var(--ink-muted);text-align:center;padding:20px;">Este ano já está encerrado — sem projeção a fazer.</p>`;
+  } else if (mesesRestantes === 0) {
+    projBody.innerHTML = `<p style="font-size:13.5px;color:var(--ink-muted);text-align:center;padding:20px;">Estamos no último mês do ano — sem meses restantes para projetar.</p>`;
+  } else {
+    const pctAnoDecorrido = ((mesAtualReal + 1) / 12 * 100).toFixed(0);
+    projBody.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;">
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:11px;color:var(--ink-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.6px;">Faturamento Projetado (ano completo)</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--rose);margin-top:4px;">${BRL(projecaoTotalAno)}</div>
+          <div style="font-size:12px;color:var(--ink-muted);margin-top:4px;">Baseado na média de ${BRL(mediaFatMensal)}/mês × ${mesesRestantes} mes(es) restante(s)</div>
+        </div>
+        <div style="flex:1;min-width:200px;">
+          <div class="progress-label"><span>Ano decorrido</span><span>${pctAnoDecorrido}%</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pctAnoDecorrido}%"></div></div>
+          <div style="font-size:11px;color:var(--ink-muted);margin-top:10px;">Faltam <strong>${mesesRestantes}</strong> mes(es) para o fim de ${ano}</div>
+        </div>
+      </div>`;
+  }
+}
+
 function rowHtml(v) {
   const restante = (parseFloat(v.valorProd)||0) - (parseFloat(v.valorPago)||0);
   return `<tr>
@@ -2203,6 +2412,59 @@ function onProdutoKeydown(e) {
   const sugestoesEl = document.getElementById('produtoSugestoes');
   if (!sugestoesEl.classList.contains('open')) return;
   if (e.key === 'Escape') { fecharSugestoesProduto(); return; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const primeiro = sugestoesEl.querySelector('.produto-sugestao-item');
+    if (primeiro) primeiro.dispatchEvent(new MouseEvent('mousedown'));
+  }
+}
+
+// ============================================================
+// AUTOCOMPLETE DE FONTE DO LEAD
+// ============================================================
+const CATALOGO_FONTES = [
+  'Tráfego Pago', 'Orgânico', 'Retorno', 'Catálogo', 'Recorrente', 'Indicação',
+];
+
+function onFonteInput() {
+  const termo = document.getElementById('vFonte').value.toLowerCase().trim();
+  const sugestoesEl = document.getElementById('fonteSugestoes');
+  if (!termo) {
+    // Campo vazio: mostra todas as opções (como um dropdown completo)
+    sugestoesEl.innerHTML = CATALOGO_FONTES.map(f =>
+      `<div class="produto-sugestao-item" onmousedown="selecionarFonteSugerida('${f}')">${f}</div>`
+    ).join('');
+    sugestoesEl.classList.add('open');
+    return;
+  }
+
+  const matches = CATALOGO_FONTES.filter(f => f.toLowerCase().includes(termo));
+  if (matches.length === 0) { sugestoesEl.innerHTML = ''; sugestoesEl.classList.remove('open'); return; }
+
+  sugestoesEl.innerHTML = matches.map(f => {
+    const idx = f.toLowerCase().indexOf(termo);
+    const antes = f.slice(0, idx);
+    const meio = f.slice(idx, idx + termo.length);
+    const depois = f.slice(idx + termo.length);
+    return `<div class="produto-sugestao-item" onmousedown="selecionarFonteSugerida('${f}')">${antes}<strong>${meio}</strong>${depois}</div>`;
+  }).join('');
+  sugestoesEl.classList.add('open');
+}
+
+function selecionarFonteSugerida(fonte) {
+  document.getElementById('vFonte').value = fonte;
+  fecharSugestoesFonte();
+}
+
+function fecharSugestoesFonte() {
+  const el = document.getElementById('fonteSugestoes');
+  if (el) { el.innerHTML = ''; el.classList.remove('open'); }
+}
+
+function onFonteKeydown(e) {
+  const sugestoesEl = document.getElementById('fonteSugestoes');
+  if (!sugestoesEl.classList.contains('open')) return;
+  if (e.key === 'Escape') { fecharSugestoesFonte(); return; }
   if (e.key === 'Enter') {
     e.preventDefault();
     const primeiro = sugestoesEl.querySelector('.produto-sugestao-item');
