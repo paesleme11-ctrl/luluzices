@@ -851,6 +851,27 @@
       </div>
     </div>
 
+    <div class="grid-charts-tres" style="margin-bottom:20px;">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Top Produtos</span></div>
+        <div class="card-body" style="height:220px;position:relative">
+          <canvas id="chartAnualProdutos"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Origem dos Leads</span></div>
+        <div class="card-body" style="height:220px;position:relative">
+          <canvas id="chartAnualOrigem"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Saídas por Categoria</span></div>
+        <div class="card-body" style="height:220px;position:relative">
+          <canvas id="chartAnualSaidas"></canvas>
+        </div>
+      </div>
+    </div>
+
     <div class="card" style="margin-bottom:20px;">
       <div class="card-header"><span class="card-title">Comparativo Trimestral</span></div>
       <div class="card-body">
@@ -2131,17 +2152,22 @@ function renderDashboardAnual() {
 
   const totalFaturamento = dadosMeses.reduce((s,d) => s + d.faturamento, 0);
   const totalPedidos = dadosMeses.reduce((s,d) => s + d.pedidos, 0);
-  const totalLucro = dadosMeses.reduce((s,d) => s + d.lucro, 0);
   const ticketMedio = totalPedidos > 0 ? totalFaturamento / totalPedidos : 0;
 
-  // Meses já fechados (com dados reais) pra calcular médias de projeção
+  // Meses já fechados pra calcular médias de projeção
   const mesesComDados = ehAnoAtual ? mesAtualReal + 1 : 12;
   const mediaFatMensal = mesesComDados > 0 ? totalFaturamento / mesesComDados : 0;
   const mesesRestantes = ehAnoAtual ? (11 - mesAtualReal) : 0;
   const projecaoRestante = mediaFatMensal * mesesRestantes;
   const projecaoTotalAno = totalFaturamento + projecaoRestante;
 
-  // KPIs
+  // ROI e CAC anuais
+  const fluxoAno = fluxo.filter(f => (f.data||'').startsWith(String(ano)));
+  const totalMkt = fluxoAno.filter(f => f.tipo === 'saida' && f.categoria === 'marketing' && f.status !== 'agendado').reduce((s,f)=>s+f.valor,0);
+  const roi = totalMkt > 0 ? totalFaturamento / totalMkt : 0;
+  const cac = (totalPedidos > 0 && totalMkt > 0) ? totalMkt / totalPedidos : 0;
+
+  // KPIs — sem Lucro Líquido, com ROI e CAC
   document.getElementById('anualKpiGrid').innerHTML = `
     <div class="kpi-card" style="--kpi-color:var(--rose)">
       <div class="kpi-label">Faturamento do Ano</div>
@@ -2154,17 +2180,17 @@ function renderDashboardAnual() {
       <div class="kpi-sub">Média de ${(totalPedidos/Math.max(mesesComDados,1)).toFixed(0)} pedidos/mês</div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--amber)">
-      <div class="kpi-label">Ticket Médio Anual</div>
-      <div class="kpi-value">${BRL(ticketMedio)}</div>
-      <div class="kpi-sub">Considerando todo o ano</div>
+      <div class="kpi-label">ROI Anual</div>
+      <div class="kpi-value">${totalMkt > 0 ? roi.toFixed(1)+'x' : '—'}</div>
+      <div class="kpi-sub">Invest. marketing: ${BRL(totalMkt)}</div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--blue)">
-      <div class="kpi-label">Lucro Líquido do Ano</div>
-      <div class="kpi-value">${BRL(totalLucro)}</div>
-      <div class="kpi-sub">Receita − custos operacionais</div>
+      <div class="kpi-label">CAC Anual</div>
+      <div class="kpi-value">${cac > 0 ? BRL(cac) : '—'}</div>
+      <div class="kpi-sub">Ticket médio: ${BRL(ticketMedio)}</div>
     </div>`;
 
-  // Gráfico mensal
+  // Gráfico mensal de faturamento
   const corPrincipal = getCorPrincipalAtual();
   const mesesLabels = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const dadosGrafico = dadosMeses.map((d,i) => (ehAnoAtual && i > mesAtualReal) ? null : d.faturamento);
@@ -2176,7 +2202,7 @@ function renderDashboardAnual() {
       datasets: [{
         label: 'Faturamento',
         data: dadosGrafico,
-        backgroundColor: dadosMeses.map((d,i) => (i === mesAtualReal && ehAnoAtual) ? corPrincipal : hexParaRgba(corPrincipal, 0.5)),
+        backgroundColor: dadosMeses.map((_,i) => (i === mesAtualReal && ehAnoAtual) ? corPrincipal : hexParaRgba(corPrincipal, 0.5)),
         borderRadius: 6,
       }]
     },
@@ -2193,6 +2219,82 @@ function renderDashboardAnual() {
     }
   });
 
+  // ── Gráfico Top Produtos ───────────────────────────────────────────────────
+  const vendasAno = vendas.filter(v => (v.data||'').startsWith(String(ano)) && v.status !== 'cancelado');
+  const byProduto = {};
+  vendasAno.forEach(v => {
+    if (!v.produto) return;
+    (v.produto.split(',').map(p => p.trim()).filter(Boolean)).forEach(p => {
+      const key = p.toLowerCase();
+      byProduto[key] = (byProduto[key]||0) + 1;
+    });
+  });
+  const produtosSorted = Object.entries(byProduto).sort((a,b)=>b[1]-a[1]).slice(0,7);
+  const prodCores = ['#e8546a','#3dab7a','#f0a030','#4a7fc1','#a855f7','#ec4899','#64748b'];
+  mkChart('chartAnualProdutos', {
+    type: 'doughnut',
+    data: {
+      labels: produtosSorted.map(([k]) => k.charAt(0).toUpperCase()+k.slice(1)),
+      datasets:[{ data: produtosSorted.map(([,v])=>v), backgroundColor: prodCores, borderWidth:2, borderColor:'#fff' }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'bottom',labels:{font:{size:9},boxWidth:8}} } }
+  });
+
+  // ── Gráfico Origem dos Leads ───────────────────────────────────────────────
+  const byOrigem = {};
+  vendasAno.forEach(v => {
+    if (!v.fonte) return;
+    byOrigem[v.fonte] = (byOrigem[v.fonte]||0) + (parseFloat(v.valorPago)||0);
+  });
+  const origemKeys = Object.keys(byOrigem);
+  const totalOrigem = origemKeys.reduce((s,k)=>s+byOrigem[k],0)||1;
+  const origemPcts = origemKeys.map(k=>(byOrigem[k]/totalOrigem*100));
+  const origemCores = [corPrincipal,'#3dab7a','#f0a030','#4a7fc1','#a855f7','#ec4899'];
+  mkChart('chartAnualOrigem', {
+    type: 'doughnut',
+    data: {
+      labels: origemKeys.map((k,i)=>`${k} (${origemPcts[i].toFixed(0)}%)`),
+      datasets:[{ data: origemKeys.map(k=>byOrigem[k]), backgroundColor: origemCores, borderWidth:2, borderColor:'#fff' }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:9},boxWidth:8}},
+        tooltip:{ callbacks:{ label:(ctx)=>`${origemKeys[ctx.dataIndex]}: ${BRL_RAW(ctx.raw)} (${origemPcts[ctx.dataIndex].toFixed(1)}%)` } }
+      }
+    }
+  });
+
+  // ── Gráfico Saídas por Categoria ──────────────────────────────────────────
+  const saidas = fluxoAno.filter(f => f.tipo === 'saida' && f.status !== 'agendado');
+  const byCategoria = {};
+  saidas.forEach(f => {
+    const cat = f.categoria || 'outros';
+    byCategoria[cat] = (byCategoria[cat]||0) + f.valor;
+  });
+  const catSorted = Object.entries(byCategoria).sort((a,b)=>b[1]-a[1]);
+  const catCores = ['#f0a030','#e84040','#4a7fc1','#3dab7a','#7c3aed','#ec4899','#64748b'];
+  mkChart('chartAnualSaidas', {
+    type: 'bar',
+    data: {
+      labels: catSorted.map(([k])=>k.charAt(0).toUpperCase()+k.slice(1)),
+      datasets:[{
+        label:'Valor',
+        data: catSorted.map(([,v])=>v),
+        backgroundColor: catSorted.map((_,i)=>catCores[i%catCores.length]),
+        borderRadius:5,
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(ctx)=>BRL_RAW(ctx.raw) } } },
+      scales:{
+        x:{ ticks:{font:{size:9},color:chartThemeColors().text,callback:v=>'R$'+(v/1000).toFixed(0)+'k'}, grid:{color:chartThemeColors().grid} },
+        y:{ ticks:{font:{size:9},color:chartThemeColors().text}, grid:{display:false} }
+      }
+    }
+  });
   // Comparativo Trimestral
   const trimestres = [
     { nome: '1º Trimestre', meses: [0,1,2], icone: '🌱' },
