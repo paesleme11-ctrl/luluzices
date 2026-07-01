@@ -3070,11 +3070,29 @@ function saveMeta() {
 // EXPORTAR RELATÓRIO MENSAL EM PDF
 // ============================================================
 function exportarRelatorioPDF() {
-  if (typeof window.jspdf === 'undefined') { showToast('Biblioteca de PDF não carregou — verifique sua conexão', 'error'); return; }
+  if (typeof window.jspdf === 'undefined') { showToast('Biblioteca de PDF nao carregou — verifique sua conexao', 'error'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  const mesKey = document.getElementById('fluxoMesFilter')?.value || getMesKey(getMesAno().mes, getMesAno().ano);
+  // Remove acentos e caracteres especiais que o jsPDF nao renderiza
+  function txt(s) {
+    return String(s)
+      .replace(/[àáâãäå]/gi, a => /[A-Z]/.test(a) ? 'A' : 'a')
+      .replace(/[èéêë]/gi, a => /[A-Z]/.test(a) ? 'E' : 'e')
+      .replace(/[ìíîï]/gi, a => /[A-Z]/.test(a) ? 'I' : 'i')
+      .replace(/[òóôõö]/gi, a => /[A-Z]/.test(a) ? 'O' : 'o')
+      .replace(/[ùúûü]/gi, a => /[A-Z]/.test(a) ? 'U' : 'u')
+      .replace(/[ç]/gi, a => /[A-Z]/.test(a) ? 'C' : 'c')
+      .replace(/[ñ]/gi, a => /[A-Z]/.test(a) ? 'N' : 'n')
+      .replace(/[—–]/g, '-')
+      .replace(/[""'']/g, '"')
+      .replace(/[^\x00-\x7F]/g, '?');
+  }
+
+  // Pega o mês do seletor correto conforme a página ativa
+  const mesKey = currentPage === 'dashboard'
+    ? getDashMesKey()
+    : (document.getElementById('fluxoMesFilter')?.value || getMesKey(getMesAno().mes, getMesAno().ano));
   const [anoStr, mesStr] = mesKey.split('-');
   const mesNum = parseInt(mesStr) - 1;
   const anoNum = parseInt(anoStr);
@@ -3105,14 +3123,14 @@ function exportarRelatorioPDF() {
   const left = 14;
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Cabeçalho
+  // Cabecalho
   doc.setFillColor(232, 84, 106);
   doc.rect(0, 0, pageWidth, 32, 'F');
   doc.setTextColor(255,255,255);
   doc.setFontSize(20);
-  doc.text('Luluzices — Relatório Mensal', left, 18);
+  doc.text(txt('Luluzices - Relatorio Mensal'), left, 18);
   doc.setFontSize(12);
-  doc.text(labelMes.charAt(0).toUpperCase() + labelMes.slice(1), left, 27);
+  doc.text(txt(labelMes.charAt(0).toUpperCase() + labelMes.slice(1)), left, 27);
   doc.setTextColor(0,0,0);
   y = 44;
 
@@ -3120,57 +3138,57 @@ function exportarRelatorioPDF() {
     doc.setFontSize(13);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(232, 84, 106);
-    doc.text(titulo, left, y);
+    doc.text(txt(titulo), left, y);
     doc.setTextColor(0,0,0);
     doc.setFont(undefined, 'normal');
     y += 7;
   }
   function linhaDado(label, valor) {
     doc.setFontSize(11);
-    doc.text(label, left, y);
+    doc.text(txt(label), left, y);
     doc.setFont(undefined, 'bold');
-    doc.text(valor, left + 80, y);
+    doc.text(txt(valor), left + 80, y);
     doc.setFont(undefined, 'normal');
     y += 7;
   }
 
-  linhaSecao('📊 Resumo do Mês');
+  linhaSecao('Resumo do Mes');
   linhaDado('Faturamento Total:', BRL_RAW(fatTotal));
   linhaDado('Total de Pedidos:', `${totalPedidos} (${finalizados} finalizados)`);
-  linhaDado('Ticket Médio:', BRL_RAW(ticket));
-  linhaDado('Lucro Líquido (custos op.):', BRL_RAW(lucro));
+  linhaDado('Ticket Medio:', BRL_RAW(ticket));
+  linhaDado('Lucro Liquido (custos op.):', BRL_RAW(lucro));
   y += 4;
 
-  linhaSecao('📈 Métricas de Marketing');
-  linhaDado('ROI:', mkt > 0 ? `${roi.toFixed(1)}x` : '—');
-  linhaDado('CAC:', mkt > 0 ? BRL_RAW(cac) : '—');
+  linhaSecao('Metricas de Marketing');
+  linhaDado('ROI:', mkt > 0 ? `${roi.toFixed(1)}x` : '-');
+  linhaDado('CAC:', mkt > 0 ? BRL_RAW(cac) : '-');
   linhaDado('Investimento em Marketing:', BRL_RAW(mkt));
   y += 4;
 
   if (Object.keys(byOrigem).length > 0) {
-    linhaSecao('🎯 Origem dos Leads');
+    linhaSecao('Origem dos Leads');
     const totalOrigem = Object.values(byOrigem).reduce((a,b)=>a+b,0) || 1;
     Object.entries(byOrigem).sort((a,b)=>b[1]-a[1]).forEach(([origem, valor]) => {
       const pct = (valor/totalOrigem*100).toFixed(0);
-      linhaDado(origem.charAt(0).toUpperCase()+origem.slice(1)+':', `${BRL_RAW(valor)} (${pct}%)`);
+      linhaDado(txt(origem.charAt(0).toUpperCase()+origem.slice(1))+':', `${BRL_RAW(valor)} (${pct}%)`);
     });
     y += 4;
   }
 
   // Lista de vendas finalizadas
   if (y > 230) { doc.addPage(); y = 20; }
-  linhaSecao('✅ Vendas Finalizadas no Mês');
+  linhaSecao('Vendas Finalizadas no Mes');
   const finalizadasLista = vm.filter(v => v.status === 'finalizado');
   if (finalizadasLista.length === 0) {
     doc.setFontSize(10); doc.setTextColor(120,120,120);
-    doc.text('Nenhuma venda finalizada neste mês.', left, y);
+    doc.text('Nenhuma venda finalizada neste mes.', left, y);
     doc.setTextColor(0,0,0);
     y += 7;
   } else {
     doc.setFontSize(9);
     finalizadasLista.forEach(v => {
       if (y > 280) { doc.addPage(); y = 20; }
-      const linha = `${(v.data||'').split('-').reverse().join('/')}  ·  ${v.contato||'—'}  ·  ${v.produto||'—'}  ·  ${BRL_RAW(v.valorPago)}`;
+      const linha = txt(`${(v.data||'').split('-').reverse().join('/')}  |  ${v.contato||'-'}  |  ${v.produto||'-'}  |  ${BRL_RAW(v.valorPago)}`);
       doc.text(linha, left, y);
       y += 5.5;
     });
@@ -3179,7 +3197,7 @@ function exportarRelatorioPDF() {
   // Rodapé
   doc.setFontSize(8);
   doc.setTextColor(150,150,150);
-  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, left, 290);
+  doc.text(txt(`Gerado em ${new Date().toLocaleString('pt-BR')}`), left, 290);
 
   doc.save(`luluzices_relatorio_${mesKey}.pdf`);
   showToast('Relatório PDF gerado ✓', 'success');
