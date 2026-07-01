@@ -608,10 +608,11 @@
 
   <div class="page active" id="page-dashboard">
     <!-- Seletor de mês do dashboard -->
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:12px 20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:12px 20px;flex-wrap:wrap;">
       <span style="font-size:12px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.8px;">📊 Período:</span>
       <select id="dashMesFilter" onchange="onDashMesChange()" style="font-size:13.5px;padding:7px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-weight:500;color:var(--ink);outline:none;cursor:pointer;flex:1;max-width:240px;"></select>
       <span id="dashMesIndicador" style="font-size:12px;color:var(--ink-muted);margin-left:auto;"></span>
+      <button class="btn btn-ghost btn-sm btn-secundario" onclick="exportarRelatorioPDF()" title="Exportar relatório mensal PDF">📄 <span class="btn-text">PDF</span></button>
     </div>
     <div class="kpi-grid" id="kpiGrid"></div>
 
@@ -886,17 +887,37 @@
   </div>
 
   <div class="page" id="page-confirmacao">
-    <div class="search-bar">
-      <input class="search-input" type="text" id="searchConfirmacao" placeholder="🔍  Buscar pedido por nome do contato ou produto..." oninput="renderConfirmacaoPage()">
-      <button class="btn btn-primary" onclick="abrirModalConfirmacaoWpp(null)">📲 Nova Confirmação (digitar número)</button>
-    </div>
-    <div class="card">
-      <div class="card-header"><span class="card-title">Ou escolha um pedido já cadastrado</span></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Contato</th><th>Data</th><th>Produto</th><th>Detalhes</th><th></th></tr></thead>
-          <tbody id="confirmacaoListaBody"></tbody>
-        </table>
+    <div style="max-width:520px;margin:0 auto;">
+      <div style="text-align:center;margin-bottom:28px;">
+        <div style="font-size:40px;margin-bottom:8px;">📲</div>
+        <h2 style="font-family:'DM Serif Display',serif;font-size:26px;margin-bottom:6px;">Gerador de Links</h2>
+        <p style="color:var(--ink-muted);font-size:14px;">Crie o link personalizado para confirmar presença no WhatsApp</p>
+      </div>
+      <div class="card">
+        <div class="card-body" style="padding:28px;">
+          <div class="form-group" style="margin-bottom:20px;">
+            <label style="font-size:13px;font-weight:700;">Número do WhatsApp</label>
+            <input type="tel" id="confirmacaoNroDireto" placeholder="(11) 999090759" style="margin-top:6px;font-size:16px;">
+          </div>
+          <div class="form-group" style="margin-bottom:24px;">
+            <label style="font-size:13px;font-weight:700;">Mensagem inicial</label>
+            <textarea id="confirmacaoMsgDireta" style="margin-top:6px;min-height:120px;font-size:15px;resize:vertical;" placeholder="Quero confirmar minha presença no aniversário do/a ..."></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="gerarLinkDireto()" style="width:100%;padding:16px;font-size:16px;border-radius:var(--radius-sm);">Gerar link</button>
+          <div id="confirmacaoResultadoDireto" style="display:none;margin-top:20px;background:var(--cream);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:16px;">
+            <div style="font-size:11px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">Link gerado</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="confirmacaoLinkDireto" readonly style="flex:1;font-size:12px;min-width:0;">
+              <button class="btn btn-ghost btn-sm" onclick="copiarLinkDireto()" title="Copiar">📋 Copiar</button>
+              <a id="confirmacaoAbrirDireto" href="#" target="_blank" class="btn btn-primary btn-sm">Abrir</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:24px;">
+        <div style="font-size:12px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;">Preencher a partir de um pedido</div>
+        <div id="confirmacaoSugestoesLista"></div>
       </div>
     </div>
   </div>
@@ -1108,36 +1129,8 @@
       <button class="modal-close" onclick="closeModal('modalPersonalizarCores')">✕</button>
     </div>
     <div class="modal-body">
-      <div style="margin-bottom:18px;">
-        <label style="font-size:11px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.6px;">🎯 Cor Principal</label>
-        <p style="font-size:11.5px;color:var(--ink-muted);margin:2px 0 10px;">Botões, gráficos e destaques</p>
-        <div class="color-swatch-grid" id="presetCoresGrid"></div>
-        <div class="custom-color-row">
-          <input type="color" id="corCustomizadaInput" value="#e8546a" onchange="aplicarCorPrincipal(this.value)">
-          <div style="font-size:13px;color:var(--ink-light);">Cor personalizada</div>
-        </div>
-      </div>
-
-      <div style="margin-bottom:18px;padding-top:14px;border-top:1px solid var(--border);">
-        <label style="font-size:11px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.6px;">✏️ Cor do Texto</label>
-        <p style="font-size:11.5px;color:var(--ink-muted);margin:2px 0 10px;">Textos principais do sistema</p>
-        <div class="custom-color-row" style="border-top:none;padding-top:0;">
-          <input type="color" id="corTextoInput" value="#1a1214" onchange="aplicarCorTexto(this.value)">
-          <div style="font-size:13px;color:var(--ink-light);">Escolher cor do texto</div>
-        </div>
-      </div>
-
-      <div style="padding-top:14px;border-top:1px solid var(--border);">
-        <label style="font-size:11px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.6px;">🖼️ Cor de Fundo</label>
-        <p style="font-size:11.5px;color:var(--ink-muted);margin:2px 0 10px;">Plano de fundo geral do sistema</p>
-        <div class="custom-color-row" style="border-top:none;padding-top:0;">
-          <input type="color" id="corFundoInput" value="#fdf6f0" onchange="aplicarCorFundo(this.value)">
-          <div style="font-size:13px;color:var(--ink-light);">Escolher cor de fundo</div>
-        </div>
-      </div>
-      <p style="font-size:11px;color:var(--ink-muted);background:var(--warm);padding:8px 10px;border-radius:8px;margin-top:14px;">
-        ℹ️ Cor de texto e fundo ficam pausadas automaticamente quando o modo noturno está ativo.
-      </p>
+      <p style="font-size:12.5px;color:var(--ink-muted);margin-bottom:14px;">Escolha a cor principal do sistema — botões, gráficos e destaques.</p>
+      <div class="color-swatch-grid" id="presetCoresGrid"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="restaurarCorPadrao()">Restaurar Padrão</button>
@@ -1662,27 +1655,81 @@ function copiarLinkConfirmacao() {
 }
 
 function renderConfirmacaoPage() {
-  const q = (document.getElementById('searchConfirmacao')?.value || '').toLowerCase();
-  let lista = vendas.filter(v => v.status !== 'cancelado');
-  if (q) {
-    lista = lista.filter(v => [v.contato, v.produto].join(' ').toLowerCase().includes(q));
+  const lista = vendas
+    .filter(v => v.status !== 'cancelado')
+    .sort((a,b) => (b.data||'') > (a.data||'') ? 1 : -1)
+    .slice(0, 20); // mostra os 20 mais recentes como sugestão rápida
+
+  const el = document.getElementById('confirmacaoSugestoesLista');
+  if (!el) return;
+
+  if (!lista.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--ink-muted);">Nenhum pedido cadastrado ainda.</p>';
+    return;
   }
-  lista = lista.sort((a,b) => (b.data||'') > (a.data||'') ? 1 : -1).slice(0, 100);
 
-  const body = document.getElementById('confirmacaoListaBody');
-  if (!body) return;
-
-  body.innerHTML = lista.length ? lista.map(v => {
+  el.innerHTML = lista.map(v => {
     const campos = parseObsFormulario(v.obs);
-    const temDetalhes = !!campos;
-    return `<tr>
-      <td style="font-weight:500">${v.contato||'—'}</td>
-      <td style="color:var(--ink-muted)">${(v.data||'').split('-').reverse().join('/')}</td>
-      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.produto||'—'}</td>
-      <td>${temDetalhes ? '<span style="color:var(--purple);font-weight:600;">🎉 Sim</span>' : '<span style="color:var(--ink-muted);">—</span>'}</td>
-      <td><button class="btn btn-primary btn-sm" onclick="abrirModalConfirmacaoWpp(vendas.find(x=>x.id==='${v.id}'))">📲 Confirmação</button></td>
-    </tr>`;
-  }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhum pedido encontrado</td></tr>';
+    const nomeForm = buscarCampo(campos, 'nome');
+    const label = nomeForm ? `🎉 ${nomeForm}` : (v.contato || '—');
+    const sub = (v.data||'').split('-').reverse().join('/') + (v.produto ? ` · ${v.produto.split(',')[0].trim()}` : '');
+    return `<div onclick="preencherConfirmacaoFromVenda('${v.id}')" style="
+      display:flex;align-items:center;justify-content:space-between;
+      padding:12px 16px;background:var(--cream);border:1px solid var(--border);
+      border-radius:var(--radius-sm);margin-bottom:8px;cursor:pointer;
+      transition:background 0.15s;
+    " onmouseover="this.style.background='var(--rose-light)'" onmouseout="this.style.background='var(--cream)'">
+      <div>
+        <div style="font-weight:600;font-size:13.5px;">${label}</div>
+        <div style="font-size:11.5px;color:var(--ink-muted);margin-top:1px;">${sub}</div>
+      </div>
+      <span style="font-size:11px;color:var(--rose);font-weight:700;">Usar →</span>
+    </div>`;
+  }).join('');
+}
+
+function preencherConfirmacaoFromVenda(id) {
+  const v = vendas.find(x => x.id === id);
+  if (!v) return;
+  const campos = parseObsFormulario(v.obs);
+  const nome = buscarCampo(campos, 'nome') || v.contato || '';
+  const numeroForm = buscarCampo(campos, 'whatsapp','whats','telefone','celular','numero de contato');
+  const numero = numeroForm ? numeroForm.replace(/\D/g,'') : limparNumeroWhats(v.contato||'');
+
+  document.getElementById('confirmacaoNroDireto').value = numero;
+  document.getElementById('confirmacaoMsgDireta').value = nome
+    ? `Quero confirmar minha presença no aniversário do/a ${nome}`
+    : 'Quero confirmar minha presença no aniversário do/a ';
+  document.getElementById('confirmacaoResultadoDireto').style.display = 'none';
+  // Scroll suave pro topo do formulário
+  document.getElementById('confirmacaoNroDireto').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+function gerarLinkDireto() {
+  const numero = (document.getElementById('confirmacaoNroDireto').value||'').trim();
+  const mensagem = (document.getElementById('confirmacaoMsgDireta').value||'').trim();
+  const limpo = limparNumeroWhats(numero);
+  if (!limpo) { showToast('Informe um número de WhatsApp válido', 'error'); return; }
+
+  const link = linkWhatsApp(limpo, mensagem);
+  document.getElementById('confirmacaoLinkDireto').value = link;
+  document.getElementById('confirmacaoAbrirDireto').href = link;
+  document.getElementById('confirmacaoResultadoDireto').style.display = 'block';
+  showToast('Link gerado ✓', 'success');
+}
+
+function copiarLinkDireto() {
+  const link = document.getElementById('confirmacaoLinkDireto').value;
+  if (!link) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(() => showToast('Link copiado 📋', 'success'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = link; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); showToast('Link copiado 📋', 'success'); } catch {}
+    document.body.removeChild(ta);
+  }
 }
 
 function isPersonalizado(v) {
@@ -3334,8 +3381,7 @@ function aplicarCorPrincipal(corHex, persistir=true) {
   document.querySelectorAll('.color-swatch').forEach(el => {
     el.classList.toggle('active', el.dataset.cor?.toLowerCase() === corHex.toLowerCase());
   });
-  const customInput = document.getElementById('corCustomizadaInput');
-  if (customInput) customInput.value = corHex;
+
 
   // Re-renderiza gráficos pra refletir a nova cor (só se o app já estiver carregado)
   if (persistir && typeof renderPage === 'function' && currentPage && typeof vendas !== 'undefined') {
@@ -3349,8 +3395,7 @@ function aplicarCorTexto(corHex, persistir=true) {
   document.documentElement.style.setProperty('--ink', corHex);
   document.documentElement.style.setProperty('--ink-light', light);
   if (persistir) LS.set('corTexto', corHex);
-  const input = document.getElementById('corTextoInput');
-  if (input) input.value = corHex;
+
 }
 
 /** Aplica a cor de fundo (--cream) e gera as variações de superfície (--warm, --surface-2) */
@@ -3360,8 +3405,7 @@ function aplicarCorFundo(corHex, persistir=true) {
   document.documentElement.style.setProperty('--warm', warm);
   document.documentElement.style.setProperty('--surface-2', corHex);
   if (persistir) LS.set('corFundo', corHex);
-  const input = document.getElementById('corFundoInput');
-  if (input) input.value = corHex;
+
 }
 
 function restaurarCorPadrao() {
@@ -3385,9 +3429,7 @@ function montarGridPresets() {
 function abrirPersonalizarCores() {
   montarGridPresets();
   // Sincroniza os inputs de cor com os valores atuais salvos
-  document.getElementById('corCustomizadaInput').value = LS.get('corPrincipal', '#e8546a');
-  document.getElementById('corTextoInput').value = LS.get('corTexto', '#1a1214');
-  document.getElementById('corFundoInput').value = LS.get('corFundo', '#fdf6f0');
+
   document.getElementById('modalPersonalizarCores').classList.add('open');
 }
 
