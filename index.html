@@ -3175,22 +3175,40 @@ function exportarRelatorioPDF() {
     y += 4;
   }
 
-  // Lista de vendas finalizadas
+  // Top 5 Produtos
   if (y > 230) { doc.addPage(); y = 20; }
-  linhaSecao('Vendas Finalizadas no Mes');
-  const finalizadasLista = vm.filter(v => v.status === 'finalizado');
-  if (finalizadasLista.length === 0) {
+  linhaSecao('Top 5 Produtos');
+  const byProdutoPDF = {};
+  vm.forEach(v => {
+    if (!v.produto) return;
+    v.produto.split(',').map(p => p.trim()).filter(Boolean).forEach(p => {
+      const key = p.toLowerCase();
+      if (!byProdutoPDF[key]) byProdutoPDF[key] = { nome: p, qtd: 0, valor: 0 };
+      byProdutoPDF[key].qtd++;
+      byProdutoPDF[key].valor += parseFloat(v.valorProd)||0;
+    });
+  });
+  const top5 = Object.values(byProdutoPDF).sort((a,b) => b.qtd - a.qtd).slice(0, 5);
+  if (top5.length === 0) {
     doc.setFontSize(10); doc.setTextColor(120,120,120);
-    doc.text('Nenhuma venda finalizada neste mes.', left, y);
+    doc.text('Nenhum produto registrado neste mes.', left, y);
     doc.setTextColor(0,0,0);
     y += 7;
   } else {
-    doc.setFontSize(9);
-    finalizadasLista.forEach(v => {
-      if (y > 280) { doc.addPage(); y = 20; }
-      const linha = txt(`${(v.data||'').split('-').reverse().join('/')}  |  ${v.contato||'-'}  |  ${v.produto||'-'}  |  ${BRL_RAW(v.valorPago)}`);
-      doc.text(linha, left, y);
-      y += 5.5;
+    top5.forEach((p, i) => {
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.text(`${i+1}.`, left, y);
+      doc.setFont(undefined, 'normal');
+      doc.text(txt(p.nome), left + 10, y);
+      doc.setFont(undefined, 'bold');
+      doc.text(`${p.qtd} venda${p.qtd>1?'s':''}`, left + 110, y);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(120,120,120);
+      doc.setFontSize(9);
+      doc.text(BRL_RAW(p.valor), left + 140, y);
+      doc.setTextColor(0,0,0);
+      y += 8;
     });
   }
 
@@ -3200,7 +3218,7 @@ function exportarRelatorioPDF() {
   doc.text(txt(`Gerado em ${new Date().toLocaleString('pt-BR')}`), left, 290);
 
   doc.save(`luluzices_relatorio_${mesKey}.pdf`);
-  showToast('Relatório PDF gerado ✓', 'success');
+  showToast('Relatorio PDF gerado', 'success');
 }
 
 function backupJSON() {
