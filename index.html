@@ -1226,11 +1226,15 @@ async function loadFromFirebase() {
 
     db.collection('vendas').onSnapshot(snap => {
       snap.docChanges().forEach(ch => {
+        const data = ch.doc.data();
+        // Usa o campo interno 'id' pra encontrar no array local
+        // (pode diferir do doc.id quando salvo pela extensão Chrome)
+        const internalId = data.id || ch.doc.id;
         if (ch.type==='added'||ch.type==='modified') {
-          const idx = vendas.findIndex(v=>v.id===ch.doc.id);
-          if (idx>=0) vendas[idx]=ch.doc.data(); else vendas.unshift(ch.doc.data());
+          const idx = vendas.findIndex(v => v.id === internalId);
+          if (idx>=0) vendas[idx] = data; else vendas.unshift(data);
         }
-        if (ch.type==='removed') vendas=vendas.filter(v=>v.id!==ch.doc.id);
+        if (ch.type==='removed') vendas = vendas.filter(v => v.id !== internalId);
       });
       LS.set('vendas',vendas);
       if (['dashboard','vendas','tarefas'].includes(currentPage)) renderPage(currentPage);
