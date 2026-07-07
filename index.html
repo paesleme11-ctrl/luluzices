@@ -1233,7 +1233,11 @@ async function loadFromFirebase() {
         if (ch.type==='removed') vendas=vendas.filter(v=>v.id!==ch.doc.id);
       });
       LS.set('vendas',vendas);
-      if (['dashboard','vendas','tarefas'].includes(currentPage)) renderPage(currentPage);
+      // Só re-renderiza se NÃO for escrita local pendente (evita flickar status ao mudar)
+      const temPendingLocal = snap.docChanges().some(ch => ch.doc.metadata.hasPendingWrites);
+      if (!temPendingLocal && ['dashboard','vendas','tarefas'].includes(currentPage)) {
+        renderPage(currentPage);
+      }
       updateTarefasBadge();
     });
 
