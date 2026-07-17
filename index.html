@@ -579,6 +579,7 @@
   <div class="nav-item" onclick="goTo('fluxo')"><span class="nav-icon">💰</span> Fluxo de Caixa</div>
   <div class="nav-item" onclick="goTo('confirmacao')"><span class="nav-icon">📲</span> Confirmação Presença</div>
   <div class="nav-section">Configurações</div>
+  <div class="nav-item" onclick="goTo('produtos')"><span class="nav-icon">🛒</span> Produtos</div>
   <div class="nav-item" onclick="goTo('metas')"><span class="nav-icon">🎯</span> Metas</div>
   <div class="sidebar-bottom">
     <div class="month-badge" id="monthBadge">—</div>
@@ -922,6 +923,25 @@
     </div>
   </div>
 
+  <!-- PRODUTOS -->
+  <div class="page" id="page-produtos">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h2 style="font-family:'DM Serif Display',serif;font-size:22px;">Catálogo de Produtos</h2>
+        <p style="font-size:13px;color:var(--ink-muted);margin-top:2px;">Gerencie produtos e preços — o valor é preenchido automaticamente ao lançar um pedido</p>
+      </div>
+      <button class="btn btn-primary" onclick="abrirModalProduto()">+ Novo Produto</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Produto</th><th>Preço</th><th>Ações</th></tr></thead>
+          <tbody id="produtosTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div class="page" id="page-metas">
     <div class="grid-2">
       <div class="card">
@@ -1011,9 +1031,22 @@
       <div class="form-row">
         <div class="form-group"><label>Contato (DDD + número)</label><input type="text" id="vContato" placeholder="Ex: 11 99999-0000"></div>
       </div>
+      <div class="form-row">
+        <div class="form-group" style="position:relative;">
+          <label>Produto(s)</label>
+          <input type="text" id="vProduto" placeholder="Digite p/ buscar — ex: interativo animado, personalização" autocomplete="off"
+                 oninput="onProdutoInput()" onfocus="onProdutoInput()" onblur="setTimeout(fecharSugestoesProduto, 150)"
+                 onkeydown="onProdutoKeydown(event)">
+          <div id="produtoSugestoes" class="produto-sugestoes"></div>
+        </div>
+      </div>
       <div class="form-row cols-2">
-        <div class="form-group"><label>Valor do Produto (R$)</label>
-          <input type="number" id="vValorProd" step="0.01" min="0" placeholder="0,00" oninput="autoSinal()">
+        <div class="form-group">
+          <label>Valor do Produto (R$)</label>
+          <div style="position:relative;">
+            <input type="number" id="vValorProd" step="0.01" min="0" placeholder="0,00" oninput="autoSinal();delete this.dataset.autoPreco;const t=document.getElementById('vValorProdAutoTag');if(t)t.style.display='none';">
+            <span id="vValorProdAutoTag" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;pointer-events:none;">auto</span>
+          </div>
         </div>
         <div class="form-group"><label>Sinal Pago (R$)</label>
           <input type="number" id="vSinal" step="0.01" min="0" placeholder="0,00" oninput="onSinalManualEdit()">
@@ -1029,15 +1062,6 @@
                  oninput="onFonteInput()" onfocus="onFonteInput()" onblur="setTimeout(fecharSugestoesFonte, 150)"
                  onkeydown="onFonteKeydown(event)">
           <div id="fonteSugestoes" class="produto-sugestoes"></div>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group" style="position:relative;">
-          <label>Produto(s)</label>
-          <input type="text" id="vProduto" placeholder="Digite p/ buscar — ex: interativo animado, personalização" autocomplete="off"
-                 oninput="onProdutoInput()" onfocus="onProdutoInput()" onblur="setTimeout(fecharSugestoesProduto, 150)"
-                 onkeydown="onProdutoKeydown(event)">
-          <div id="produtoSugestoes" class="produto-sugestoes"></div>
         </div>
       </div>
       <div class="form-row">
@@ -1139,6 +1163,32 @@
   </div>
 </div>
 
+<!-- MODAL PRODUTO -->
+<div class="modal-overlay" id="modalProduto">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <span class="modal-title" id="modalProdutoTitle">Novo Produto</span>
+      <button class="modal-close" onclick="closeModal('modalProduto')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>Nome do Produto</label>
+          <input type="text" id="pNome" placeholder="Ex: Interativo Animado">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Preço (R$)</label>
+          <input type="number" id="pPreco" step="0.01" min="0" placeholder="0,00">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modalProduto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarProduto()">Salvar Produto</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div id="loadingOverlay" style="position:fixed;inset:0;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px">
@@ -1224,6 +1274,8 @@ async function loadFromFirebase() {
     if (fluxoSnap.exists) { fluxo = JSON.parse(fluxoSnap.data().data||'[]'); LS.set('fluxo',fluxo); }
     if (metasSnap.exists) { metas = JSON.parse(metasSnap.data().data||'{}'); LS.set('metas',metas); }
 
+    await loadProdutosRemote();
+
     db.collection('vendas').onSnapshot(snap => {
       snap.docChanges().forEach(ch => {
         if (ch.type==='added'||ch.type==='modified') {
@@ -1271,8 +1323,8 @@ setTimeout(() => {
 // ============================================================
 // NAVIGATION
 // ============================================================
-const PAGES = ['dashboard','anual','tarefas','vendas','fluxo','confirmacao','metas'];
-const PAGE_TITLES = { dashboard:'Dashboard', anual:'Dashboard Anual', tarefas:'Tarefas do Dia', vendas:'Vendas', fluxo:'Fluxo de Caixa', confirmacao:'Confirmação de Presença', metas:'Metas' };
+const PAGES = ['dashboard','anual','tarefas','vendas','fluxo','confirmacao','produtos','metas'];
+const PAGE_TITLES = { dashboard:'Dashboard', anual:'Dashboard Anual', tarefas:'Tarefas do Dia', vendas:'Vendas', fluxo:'Fluxo de Caixa', confirmacao:'Confirmação de Presença', produtos:'Produtos', metas:'Metas' };
 let currentPage = 'dashboard';
 
 function goTo(page) {
@@ -1284,7 +1336,7 @@ function goTo(page) {
   });
   document.getElementById('pageTitle').textContent = PAGE_TITLES[page];
   const btn = document.getElementById('topbarAction');
-  if (page === 'metas' || page === 'tarefas' || page === 'confirmacao' || page === 'anual') { btn.style.display = 'none'; }
+  if (page === 'metas' || page === 'tarefas' || page === 'confirmacao' || page === 'anual' || page === 'produtos') { btn.style.display = 'none'; }
   else { btn.style.display = ''; btn.textContent = page === 'fluxo' ? '+ Transação' : '+ Nova Venda'; btn.onclick = page === 'fluxo' ? () => document.getElementById('fluxoDesc').focus() : openModalVenda; }
   renderPage(page);
 }
@@ -1296,6 +1348,7 @@ function renderPage(p) {
   if (p === 'vendas') renderVendas();
   if (p === 'fluxo') renderFluxo();
   if (p === 'metas') renderMetas();
+  if (p === 'produtos') renderProdutos();
   if (p === 'confirmacao') renderConfirmacaoPage();
 }
 
@@ -2490,6 +2543,11 @@ function openModalVenda(v=null) {
   document.getElementById('vContato').value = v?.contato || '';
   document.getElementById('vFonte').value = v?.fonte || 'tráfego pago';
   document.getElementById('vValorProd').value = v?.valorProd || '';
+  // Reseta flag de preço automático
+  const valorEl = document.getElementById('vValorProd');
+  delete valorEl.dataset.autoPreco;
+  const autoTag = document.getElementById('vValorProdAutoTag');
+  if (autoTag) autoTag.style.display = 'none';
   document.getElementById('vProduto').value = v?.produto || '';
   document.getElementById('vSinal').value = v?.sinal || '';
   document.getElementById('vValorPago').value = v?.valorPago || '';
@@ -2510,13 +2568,152 @@ function onStatusChange() {
 // ============================================================
 // AUTOCOMPLETE DE PRODUTOS
 // ============================================================
-const CATALOGO_PRODUTOS = [
-  'Interativo Animado', 'Interativo Tradicional', 'Cinematográfico', 'Infinito',
-  'Combo', 'Filtro', 'Lembrete/Save', 'Personalização', 'Forms', 'Urgência',
-  'Casamento', 'Interativo p/ Casamento', 'Interativo Debutante', 'Mascotinho',
-  'Realista', 'Artes', 'Animado', '✏️ Pedido Personalizado',
+// ============================================================
+// GESTÃO DE PRODUTOS — catálogo dinâmico com Firebase
+// ============================================================
+// Produtos migrados do catálogo estático original
+const PRODUTOS_PADRAO = [
+  { id:'p_01', nome:'Interativo Animado',       preco:150 },
+  { id:'p_02', nome:'Interativo Tradicional',   preco:120 },
+  { id:'p_03', nome:'Cinematográfico',          preco:200 },
+  { id:'p_04', nome:'Infinito',                 preco:180 },
+  { id:'p_05', nome:'Combo',                    preco:250 },
+  { id:'p_06', nome:'Filtro',                   preco:80  },
+  { id:'p_07', nome:'Lembrete/Save',            preco:60  },
+  { id:'p_08', nome:'Personalização',           preco:100 },
+  { id:'p_09', nome:'Forms',                    preco:90  },
+  { id:'p_10', nome:'Urgência',                 preco:130 },
+  { id:'p_11', nome:'Casamento',                preco:300 },
+  { id:'p_12', nome:'Interativo p/ Casamento',  preco:280 },
+  { id:'p_13', nome:'Interativo Debutante',     preco:260 },
+  { id:'p_14', nome:'Mascotinho',               preco:160 },
+  { id:'p_15', nome:'Realista',                 preco:170 },
+  { id:'p_16', nome:'Artes',                    preco:70  },
+  { id:'p_17', nome:'Animado',                  preco:140 },
+  { id:'p_18', nome:'✏️ Pedido Personalizado',  preco:0   },
 ];
 
+// Estado global — começa com padrão, sobrescrito pelo Firebase
+let catalogoProdutos = LS.get('catalogoProdutos', PRODUTOS_PADRAO);
+
+async function saveProdutosRemote() {
+  if (!db) return;
+  try {
+    await db.collection('config').doc('produtos').set({ data: JSON.stringify(catalogoProdutos) });
+  } catch(e) { console.warn('Erro ao salvar produtos:', e); }
+}
+
+function saveProdutosLocal() {
+  LS.set('catalogoProdutos', catalogoProdutos);
+}
+
+function getNomesProdutos() {
+  return catalogoProdutos.map(p => p.nome);
+}
+
+function getPrecoProduto(nome) {
+  const n = nome.trim().toLowerCase();
+  const prod = catalogoProdutos.find(p => p.nome.toLowerCase() === n);
+  return prod ? prod.preco : null;
+}
+
+// Init: carrega do Firebase se disponível (chamado em loadFromFirebase)
+async function loadProdutosRemote() {
+  if (!db) return;
+  try {
+    const snap = await db.collection('config').doc('produtos').get();
+    if (snap.exists) {
+      const loaded = JSON.parse(snap.data().data || '[]');
+      if (loaded.length > 0) {
+        catalogoProdutos = loaded;
+        saveProdutosLocal();
+      }
+    } else {
+      // Primeira vez: sobe os padrões pro Firebase
+      await saveProdutosRemote();
+    }
+  } catch(e) { console.warn('Erro ao carregar produtos:', e); }
+}
+
+// ── Render da aba Produtos ────────────────────────────────────────────────────
+const BRL_RAW_plain = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function renderProdutos() {
+  const tbody = document.getElementById('produtosTableBody');
+  if (!tbody) return;
+
+  if (!catalogoProdutos.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhum produto cadastrado</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = catalogoProdutos.map((p, idx) => `
+    <tr>
+      <td style="font-weight:500">${p.nome}</td>
+      <td>${p.preco > 0 ? BRL_RAW_plain(p.preco) : '<span style="color:var(--ink-muted);">A combinar</span>'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="editarProduto(${idx})" title="Editar">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="deletarProduto(${idx})" title="Excluir" style="color:var(--red)">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+let _editandoProdutoIdx = null;
+
+function abrirModalProduto(idx = null) {
+  _editandoProdutoIdx = idx;
+  const titulo = document.getElementById('modalProdutoTitle');
+  const nomeInput = document.getElementById('pNome');
+  const precoInput = document.getElementById('pPreco');
+
+  if (idx !== null) {
+    const p = catalogoProdutos[idx];
+    titulo.textContent = 'Editar Produto';
+    nomeInput.value = p.nome;
+    precoInput.value = p.preco || '';
+  } else {
+    titulo.textContent = 'Novo Produto';
+    nomeInput.value = '';
+    precoInput.value = '';
+  }
+  document.getElementById('modalProduto').classList.add('open');
+  setTimeout(() => nomeInput.focus(), 100);
+}
+
+function editarProduto(idx) { abrirModalProduto(idx); }
+
+async function salvarProduto() {
+  const nome = document.getElementById('pNome').value.trim();
+  const preco = parseFloat(document.getElementById('pPreco').value) || 0;
+  if (!nome) { showToast('Preencha o nome do produto', 'error'); return; }
+
+  if (_editandoProdutoIdx !== null) {
+    catalogoProdutos[_editandoProdutoIdx].nome = nome;
+    catalogoProdutos[_editandoProdutoIdx].preco = preco;
+    showToast('Produto atualizado ✓', 'success');
+  } else {
+    const id = 'p_' + Date.now();
+    catalogoProdutos.push({ id, nome, preco });
+    showToast('Produto adicionado ✓', 'success');
+  }
+
+  saveProdutosLocal();
+  await saveProdutosRemote();
+  closeModal('modalProduto');
+  renderProdutos();
+}
+
+async function deletarProduto(idx) {
+  const p = catalogoProdutos[idx];
+  if (!confirm(`Excluir "${p.nome}"?`)) return;
+  catalogoProdutos.splice(idx, 1);
+  saveProdutosLocal();
+  await saveProdutosRemote();
+  showToast('Produto excluído', 'error');
+  renderProdutos();
+}
+
+// ── Autocomplete — agora usa catálogo dinâmico ────────────────────────────────
 /** Retorna o termo de busca atual: o que está sendo digitado após a última vírgula */
 function getTermoAtualProduto() {
   const valor = document.getElementById('vProduto').value;
@@ -2527,20 +2724,30 @@ function getTermoAtualProduto() {
 function onProdutoInput() {
   const termo = getTermoAtualProduto().toLowerCase();
   const sugestoesEl = document.getElementById('produtoSugestoes');
-  if (!termo) { sugestoesEl.innerHTML = ''; sugestoesEl.classList.remove('open'); return; }
+  const nomes = getNomesProdutos();
 
-  // Busca produtos cujo nome contenha o termo digitado (em qualquer posição)
-  const matches = CATALOGO_PRODUTOS.filter(p => p.toLowerCase().includes(termo));
+  if (!termo) {
+    // Mostra todos ao focar campo vazio
+    sugestoesEl.innerHTML = nomes.map(p => {
+      const preco = getPrecoProduto(p);
+      const precoLabel = preco > 0 ? `<span style="color:var(--ink-muted);font-size:11px;margin-left:6px;">${BRL_RAW_plain(preco)}</span>` : '';
+      return `<div class="produto-sugestao-item" onmousedown="selecionarProdutoSugerido('${p.replace(/'/g,"\\'")}')">${p}${precoLabel}</div>`;
+    }).join('');
+    sugestoesEl.classList.add('open');
+    return;
+  }
 
+  const matches = nomes.filter(p => p.toLowerCase().includes(termo));
   if (matches.length === 0) { sugestoesEl.innerHTML = ''; sugestoesEl.classList.remove('open'); return; }
 
   sugestoesEl.innerHTML = matches.map(p => {
-    // Destaca a parte que combina com o termo digitado
     const idx = p.toLowerCase().indexOf(termo);
     const antes = p.slice(0, idx);
     const meio = p.slice(idx, idx + termo.length);
     const depois = p.slice(idx + termo.length);
-    return `<div class="produto-sugestao-item" onmousedown="selecionarProdutoSugerido('${p.replace(/'/g,"\\'")}')">${antes}<strong>${meio}</strong>${depois}</div>`;
+    const preco = getPrecoProduto(p);
+    const precoLabel = preco > 0 ? `<span style="color:var(--ink-muted);font-size:11px;margin-left:6px;">${BRL_RAW_plain(preco)}</span>` : '';
+    return `<div class="produto-sugestao-item" onmousedown="selecionarProdutoSugerido('${p.replace(/'/g,"\\'")}')">${antes}<strong>${meio}</strong>${depois}${precoLabel}</div>`;
   }).join('');
   sugestoesEl.classList.add('open');
 }
@@ -2549,11 +2756,23 @@ function selecionarProdutoSugerido(produto) {
   const campo = document.getElementById('vProduto');
   const valor = campo.value;
   const partes = valor.split(',');
-  partes[partes.length - 1] = ' ' + produto; // substitui o termo em digitação pelo produto escolhido
+  partes[partes.length - 1] = ' ' + produto;
   let novoValor = partes.map(p => p.trim()).filter(Boolean).join(', ');
-  campo.value = novoValor + ', '; // deixa pronto para adicionar outro produto
+  campo.value = novoValor + ', ';
   fecharSugestoesProduto();
   campo.focus();
+
+  // Auto-preenche o valor se o campo estiver vazio e o produto tiver preço
+  const preco = getPrecoProduto(produto);
+  const valorEl = document.getElementById('vValorProd');
+  const autoTag = document.getElementById('vValorProdAutoTag');
+  if (preco > 0 && (!valorEl.value || valorEl.dataset.autoPreco === 'true')) {
+    valorEl.value = preco.toFixed(2);
+    valorEl.dataset.autoPreco = 'true';
+    if (autoTag) autoTag.style.display = 'block';
+    _sinalAutoPreenchido = true;
+    autoSinal();
+  }
 }
 
 function fecharSugestoesProduto() {
