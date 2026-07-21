@@ -580,7 +580,7 @@
   <div class="nav-item" onclick="goTo('confirmacao')"><span class="nav-icon">📲</span> Confirmação Presença</div>
   <div class="nav-section">Configurações</div>
   <div class="nav-item" onclick="goTo('produtos')"><span class="nav-icon">🛒</span> Produtos</div>
-  <div class="nav-item" onclick="goTo('metas')"><span class="nav-icon">🎯</span> Metas</div>
+  <div class="nav-item" onclick="goTo('metas')"><span class="nav-icon">⚙️</span> Configurações</div>
   <div class="sidebar-bottom">
     <div class="month-badge" id="monthBadge">—</div>
   </div>
@@ -1005,6 +1005,25 @@
         <div class="card-body" id="metasList"></div>
       </div>
     </div>
+
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header"><span class="card-title">⏱ Prazos de Entrega</span></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--ink-muted);margin-bottom:18px;">Prazo padrão em dias úteis para cada tipo de pedido. Pode ser editado individualmente em cada venda.</p>
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label>Pedido Personalizado (dias úteis)</label>
+            <input type="number" id="prazoPersonalizado" min="1" max="30" placeholder="3">
+          </div>
+          <div class="form-group">
+            <label>Pedido Normal (dias úteis)</label>
+            <input type="number" id="prazoNormal" min="1" max="30" placeholder="1">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="salvarPrazosConfig()" style="margin-top:8px;">Salvar Prazos</button>
+        <p style="font-size:11.5px;color:var(--ink-muted);margin-top:10px;">💡 O prazo aparece nas Tarefas do Dia e gera alertas de urgência automaticamente.</p>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -1026,7 +1045,16 @@
             <option value="cancelado">❌ Cancelado</option>
           </select>
         </div>
-        <div class="form-group"><label>Data</label><input type="date" id="vData"></div>
+        <div class="form-group"><label>Data</label><input type="date" id="vData" oninput="autoPreenchePrazo()"></div>
+      </div>
+      <div class="form-row cols-2" id="rowPrazo" style="display:none;">
+        <div class="form-group">
+          <label>Prazo de entrega <span style="font-size:10px;color:var(--rose);">personalizado</span></label>
+          <input type="date" id="vPrazo" title="Data limite de entrega">
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end;">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="resetarPrazo()" style="width:100%;margin-bottom:1px;">↺ Usar padrão (${getPrazoPadrao()} dias úteis)</button>
+        </div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Contato (DDD + número)</label><input type="text" id="vContato" placeholder="Ex: 11 99999-0000"></div>
@@ -1324,7 +1352,7 @@ setTimeout(() => {
 // NAVIGATION
 // ============================================================
 const PAGES = ['dashboard','anual','tarefas','vendas','fluxo','confirmacao','produtos','metas'];
-const PAGE_TITLES = { dashboard:'Dashboard', anual:'Dashboard Anual', tarefas:'Tarefas do Dia', vendas:'Vendas', fluxo:'Fluxo de Caixa', confirmacao:'Confirmação de Presença', produtos:'Produtos', metas:'Metas' };
+const PAGE_TITLES = { dashboard:'Dashboard', anual:'Dashboard Anual', tarefas:'Tarefas do Dia', vendas:'Vendas', fluxo:'Fluxo de Caixa', confirmacao:'Confirmação de Presença', produtos:'Produtos', metas:'Configurações' };
 let currentPage = 'dashboard';
 
 function goTo(page) {
@@ -1812,15 +1840,70 @@ function calcDiasUteisDesde(dataStr) {
   return count;
 }
 
-/** Retorna info de prazo para personalizado (3 dias úteis) */
-function infoPrazoPersonalizado(v) {
-  const diasUteis = calcDiasUteisDesde(v.data);
-  const restantes = 3 - diasUteis;
-  if (restantes > 1) return { label: `${restantes} dias úteis`, classe: 'badge-prazo-ok', urgente: false };
-  if (restantes === 1) return { label: '1 dia útil', classe: 'badge-prazo-atencao', urgente: false };
-  if (restantes === 0) return { label: 'Vence hoje!', classe: 'badge-prazo-atencao', urgente: true };
-  return { label: `${Math.abs(restantes)}d útil(s) atrasado`, classe: 'badge-prazo-vencido', urgente: true };
+// ============================================================
+// CONFIGURAÇÃO DE PRAZOS
+// ============================================================
+function getPrazoConfig() {
+  return LS.get('prazoConfig', { personalizado: 3, normal: 1 });
 }
+
+function getPrazoPadrao(isPers) {
+  const cfg = getPrazoConfig();
+  return isPers ? cfg.personalizado : cfg.normal;
+}
+
+function salvarPrazosConfig() {
+  const pEl = document.getElementById('prazoPersonalizado');
+  const nEl = document.getElementById('prazoNormal');
+  if (!pEl || !nEl) return;
+  const cfg = {
+    personalizado: Math.max(1, parseInt(pEl.value) || 3),
+    normal:        Math.max(1, parseInt(nEl.value) || 1),
+  };
+  LS.set('prazoConfig', cfg);
+  showToast('Prazos salvos ✓', 'success');
+}
+
+function initPrazosConfig() {
+  const cfg = getPrazoConfig();
+  const pEl = document.getElementById('prazoPersonalizado');
+  const nEl = document.getElementById('prazoNormal');
+  if (pEl) pEl.value = cfg.personalizado;
+  if (nEl) nEl.value = cfg.normal;
+}
+
+/** Calcula a data N dias úteis após uma data base */
+function calcDataPrazo(dataBaseStr, diasUteis) {
+  if (!dataBaseStr) return null;
+  let d = new Date(dataBaseStr + 'T12:00:00');
+  let count = 0;
+  while (count < diasUteis) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return d.toISOString().split('T')[0];
+}
+
+/** Retorna info de prazo para um pedido, usando campo prazo se definido */
+function infoPrazoPersonalizado(v) {
+  const cfg = getPrazoConfig();
+  const isPers = isPersonalizado(v);
+  const diasPadrao = isPers ? cfg.personalizado : cfg.normal;
+
+  const dataLimite = v.prazo || calcDataPrazo(v.data, diasPadrao);
+  if (!dataLimite) return { label: '—', classe: '', urgente: false };
+
+  const hoje = new Date(today() + 'T12:00:00');
+  const limite = new Date(dataLimite + 'T12:00:00');
+  const diffDias = Math.round((limite - hoje) / 86400000);
+
+  if (diffDias > 1) return { label: `${diffDias} dias`, classe: 'badge-prazo-ok', urgente: false };
+  if (diffDias === 1) return { label: 'Amanhã!', classe: 'badge-prazo-atencao', urgente: false };
+  if (diffDias === 0) return { label: 'Vence hoje!', classe: 'badge-prazo-atencao', urgente: true };
+  return { label: `${Math.abs(diffDias)}d atrasado`, classe: 'badge-prazo-vencido', urgente: true };
+}
+
 
 // ============================================================
 // LÓGICA DE DATAS DO CICLO DE REPASSE
@@ -2552,6 +2635,11 @@ function openModalVenda(v=null) {
   document.getElementById('vSinal').value = v?.sinal || '';
   document.getElementById('vValorPago').value = v?.valorPago || '';
   document.getElementById('vObs').value = v?.obs || '';
+  // Prazo editável — mostra campo apenas para personalizados
+  const isPers = (v?.produto || '').toLowerCase().includes('personaliz');
+  const prazoEl = document.getElementById('vPrazo');
+  if (prazoEl) prazoEl.value = v?.prazo || '';
+  mostrarCampoPrazo(isPers, v?.data || '');
   // Nova venda: sinal começa sob controle automático. Edição: respeita o valor já salvo.
   resetSinalAuto(!!(v && v.sinal));
   document.getElementById('modalVenda').classList.add('open');
@@ -2761,15 +2849,32 @@ function selecionarProdutoSugerido(produto) {
   campo.value = novoValor + ', ';
   fecharSugestoesProduto();
   campo.focus();
+  recalcularValorProdutos();
+}
 
-  // Auto-preenche o valor se o campo estiver vazio e o produto tiver preço
-  const preco = getPrecoProduto(produto);
+/** Recalcula o valor total somando preços de todos os produtos no campo */
+function recalcularValorProdutos() {
+  const campo = document.getElementById('vProduto');
   const valorEl = document.getElementById('vValorProd');
   const autoTag = document.getElementById('vValorProdAutoTag');
-  if (preco > 0 && (!valorEl.value || valorEl.dataset.autoPreco === 'true')) {
-    valorEl.value = preco.toFixed(2);
+  if (!campo || !valorEl) return;
+
+  // Só calcula automaticamente se o valor ainda estiver sob controle automático
+  if (valorEl.value && valorEl.dataset.autoPreco !== 'true') return;
+
+  const produtos = campo.value.split(',').map(p => p.trim()).filter(Boolean);
+  let soma = 0;
+  let todosConhecidos = true;
+  produtos.forEach(p => {
+    const preco = getPrecoProduto(p);
+    if (preco !== null && preco > 0) soma += preco;
+    else if (preco === null) todosConhecidos = false;
+  });
+
+  if (soma > 0) {
+    valorEl.value = soma.toFixed(2);
     valorEl.dataset.autoPreco = 'true';
-    if (autoTag) autoTag.style.display = 'block';
+    if (autoTag) { autoTag.style.display = 'block'; autoTag.title = `Auto: ${produtos.map(p=>{ const pr=getPrecoProduto(p); return pr>0?BRL_RAW_plain(pr):'?'; }).join(' + ')}`; }
     _sinalAutoPreenchido = true;
     autoSinal();
   }
@@ -2850,6 +2955,40 @@ function autoValorPago() {
 }
 
 let _sinalAutoPreenchido = true; // controla se o sinal ainda está sob controle automático
+// ── Prazo editável no modal ───────────────────────────────────────────────────
+function autoPreenchePrazo() {
+  const data = document.getElementById('vData').value;
+  const produto = document.getElementById('vProduto').value;
+  if (!data) return;
+  const isPers = produto.toLowerCase().includes('personaliz');
+  mostrarCampoPrazo(isPers, data);
+}
+
+function mostrarCampoPrazo(mostrar, dataBase) {
+  const row = document.getElementById('rowPrazo');
+  if (!row) return;
+  row.style.display = mostrar ? '' : 'none';
+  if (mostrar && dataBase) {
+    const prazoEl = document.getElementById('vPrazo');
+    if (prazoEl && !prazoEl.value) {
+      // Pré-preenche com o prazo padrão
+      const cfg = getPrazoConfig();
+      prazoEl.value = calcDataPrazo(dataBase, cfg.personalizado) || '';
+    }
+    // Atualiza label do botão resetar
+    const cfg = getPrazoConfig();
+    const btnReset = row.querySelector('button');
+    if (btnReset) btnReset.textContent = `↺ Usar padrão (${cfg.personalizado} dias úteis)`;
+  }
+}
+
+function resetarPrazo() {
+  const data = document.getElementById('vData').value;
+  const cfg = getPrazoConfig();
+  const prazoEl = document.getElementById('vPrazo');
+  if (prazoEl && data) prazoEl.value = calcDataPrazo(data, cfg.personalizado) || '';
+}
+
 function autoSinal() {
   const v = parseFloat(document.getElementById('vValorProd').value)||0;
   const status = document.getElementById('vStatus').value;
@@ -2931,6 +3070,7 @@ function saveVenda(forcarSalvar=false) {
     contato: document.getElementById('vContato').value.trim(), fonte: document.getElementById('vFonte').value,
     valorProd, produto: document.getElementById('vProduto').value.trim(), sinal: parseFloat(document.getElementById('vSinal').value)||0,
     valorPago, obs: document.getElementById('vObs').value.trim(),
+    prazo: document.getElementById('vPrazo')?.value || null,
     ...(dataFinalizacao ? { dataFinalizacao } : {}),
   };
   if (!v.contato) { showToast('Preencha o contato','error'); return; }
