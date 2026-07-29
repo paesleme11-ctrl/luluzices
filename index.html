@@ -187,6 +187,61 @@
   .form-row.cols-3 { grid-template-columns:1fr 1fr 1fr; }
   .form-group { display:flex; flex-direction:column; gap:5px; }
 
+  /* PRODUTOS — grid admin, foto por link, adicionais */
+  .produtos-admin-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .produto-admin-card {
+    background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .produto-admin-thumb {
+    aspect-ratio: 4/5;
+    background: linear-gradient(135deg, var(--rose-light), var(--warm));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; overflow: hidden;
+  }
+  .produto-admin-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .produto-admin-info { padding: 12px 14px 14px; }
+  .produto-admin-nome { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .produto-admin-tema { font-size: 11px; color: var(--ink-muted); margin-bottom: 6px; }
+  .produto-admin-preco { font-size: 16px; font-weight: 700; color: var(--rose); font-family:'DM Serif Display',serif; margin-bottom: 8px; }
+  .produto-admin-actions { display: flex; gap: 6px; }
+  .produto-admin-actions button { flex: 1; justify-content: center; }
+
+  .foto-preview-box {
+    border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    padding: 16px; text-align: center; background: var(--cream);
+    min-height: 100px; display: flex; align-items: center; justify-content: center;
+  }
+  .foto-preview-box img { max-width: 100%; max-height: 180px; border-radius: var(--radius-sm); }
+  .foto-preview-placeholder { color: var(--ink-muted); font-size: 13px; }
+  .foto-preview-placeholder .icon { font-size: 28px; display: block; margin-bottom: 6px; }
+  .ajuda-foto-toggle { margin-top: 10px; font-size: 12.5px; font-weight: 600; color: var(--rose); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .ajuda-foto-conteudo { margin-top: 10px; background: var(--cream); border-radius: var(--radius-sm); padding: 14px 16px; font-size: 12.5px; color: var(--ink-light); }
+  .ajuda-foto-conteudo ol { margin-left: 18px; line-height: 1.8; }
+  .ajuda-foto-conteudo code { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 11.5px; color: var(--rose-dark); }
+
+  .adicional-row { display: flex; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .adicional-row input[type="text"] { flex: 2; }
+  .adicional-row input[type="number"] { flex: 1; }
+  .adicional-row button { background: none; border: none; color: var(--red); font-size: 16px; }
+  .btn-add-adicional { width: 100%; padding: 10px; border: 1.5px dashed var(--border); border-radius: var(--radius-sm); background: none; color: var(--ink-light); font-size: 13px; font-weight: 600; margin-top: 10px; }
+  .btn-add-adicional:hover { border-color: var(--rose); color: var(--rose); }
+
+  /* CARD DE PEDIDO PENDENTE (site) NAS TAREFAS */
+  .card-pedido-site {
+    background: linear-gradient(135deg, #fff, var(--rose-light));
+    border: 1.5px solid var(--rose);
+  }
+  .card-pedido-site .tarefa-dias-badge { background: var(--rose); color: #fff; }
+  .badge-pedido-site {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--rose); color: #fff; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+
   /* AUTOCOMPLETE DE PRODUTOS */
   .produto-sugestoes {
     display:none; position:absolute; top:100%; left:0; right:0; z-index:50;
@@ -928,18 +983,11 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
       <div>
         <h2 style="font-family:'DM Serif Display',serif;font-size:22px;">Catálogo de Produtos</h2>
-        <p style="font-size:13px;color:var(--ink-muted);margin-top:2px;">Gerencie produtos e preços — o valor é preenchido automaticamente ao lançar um pedido</p>
+        <p style="font-size:13px;color:var(--ink-muted);margin-top:2px;">Gerencie produtos, fotos, preços e adicionais — usado no lançamento de vendas e no site</p>
       </div>
       <button class="btn btn-primary" onclick="abrirModalProduto()">+ Novo Produto</button>
     </div>
-    <div class="card">
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Produto</th><th>Preço</th><th>Ações</th></tr></thead>
-          <tbody id="produtosTableBody"></tbody>
-        </table>
-      </div>
-    </div>
+    <div class="produtos-admin-grid" id="produtosAdminGrid"></div>
   </div>
 
   <div class="page" id="page-metas">
@@ -1199,15 +1247,61 @@
       <button class="modal-close" onclick="closeModal('modalProduto')">✕</button>
     </div>
     <div class="modal-body">
-      <div class="form-row">
+      <div class="form-group">
+        <label>Foto do produto</label>
+        <div class="foto-preview-box" id="fotoPreviewBox">
+          <div class="foto-preview-placeholder" id="fotoPreviewPlaceholder">
+            <span class="icon">📷</span>
+            Cole o link da imagem abaixo
+          </div>
+          <img id="fotoPreviewImg" style="display:none;">
+        </div>
+        <input type="text" id="pFotoUrl" placeholder="Cole aqui o link da imagem (ex: https://raw.githubusercontent.com/...)" oninput="atualizarPreviewFoto()" style="margin-top:8px;">
+        <div class="ajuda-foto-toggle" onclick="toggleAjudaFoto()">
+          <span id="ajudaFotoIcon">▸</span> Como conseguir o link de uma imagem (grátis, pelo GitHub)
+        </div>
+        <div class="ajuda-foto-conteudo" id="ajudaFotoConteudo" style="display:none;">
+          <ol>
+            <li>Acesse o repositório do site no GitHub</li>
+            <li>Entre na pasta <code>fotos-produtos</code> (crie se não existir)</li>
+            <li>Clique em <strong>"Add file" → "Upload files"</strong></li>
+            <li>Arraste a foto do convite e clique em <strong>"Commit changes"</strong></li>
+            <li>Clique na foto recém-enviada dentro do GitHub</li>
+            <li>Clique no botão <strong>"Raw"</strong> (ou "View raw")</li>
+            <li>Copie a URL que abrir no navegador e cole no campo acima</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="form-row cols-2">
         <div class="form-group"><label>Nome do Produto</label>
           <input type="text" id="pNome" placeholder="Ex: Interativo Animado">
+        </div>
+        <div class="form-group"><label>Categoria</label>
+          <select id="pCategoria">
+            <option value="Aniversário">Aniversário</option>
+            <option value="Casamento">Casamento</option>
+            <option value="Debutante">Debutante</option>
+            <option value="Infantil">Infantil</option>
+            <option value="Chá de Bebê">Chá de Bebê</option>
+            <option value="Formatura">Formatura</option>
+          </select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Preço (R$)</label>
           <input type="number" id="pPreco" step="0.01" min="0" placeholder="0,00">
         </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Descrição (aparece no site)</label>
+          <textarea id="pDescricao" placeholder="Ex: Convite animado com várias páginas, enviado em MP4..."></textarea>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Adicionais (opções extras que o cliente pode escolher no site)</label>
+        <div id="adicionaisContainer"></div>
+        <button type="button" class="btn-add-adicional" onclick="adicionarLinhaAdicional()">+ Adicionar opção extra</button>
       </div>
     </div>
     <div class="modal-footer">
@@ -1253,6 +1347,7 @@ const LS = {
 let vendas = LS.get('vendas', []);
 let fluxo  = LS.get('fluxo',  []);
 let metas  = LS.get('metas',  {});
+let pedidosPendentesSite = []; // pedidos do site aguardando confirmação de pagamento — nunca é gravado em `vendas` diretamente
 
 const firebaseConfigured = true;
 let db = null;
@@ -1319,6 +1414,18 @@ async function loadFromFirebase() {
         renderPage(currentPage);
       }
       updateTarefasBadge();
+    });
+
+    // Pedidos vindos do site — collection separada, nunca vira "venda" automaticamente.
+    // Segue o mesmo padrão seguro do listener de vendas: doc.id é sempre a chave de match.
+    db.collection('pedidos_pendentes').where('status','==','pendente').onSnapshot(snap => {
+      pedidosPendentesSite = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      const temPendingLocal = snap.docChanges().some(ch => ch.doc.metadata.hasPendingWrites);
+      if (!temPendingLocal && currentPage === 'tarefas') renderTarefas();
+      updateTarefasBadge();
+    }, err => {
+      // Coleção pode não existir ainda (nenhum pedido do site até agora) — não é erro real
+      console.warn('Listener de pedidos_pendentes:', err.message);
     });
 
     setStatus(''); hideLoading();
@@ -2727,23 +2834,29 @@ async function loadProdutosRemote() {
 const BRL_RAW_plain = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 function renderProdutos() {
-  const tbody = document.getElementById('produtosTableBody');
-  if (!tbody) return;
+  const grid = document.getElementById('produtosAdminGrid');
+  if (!grid) return;
 
   if (!catalogoProdutos.length) {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhum produto cadastrado</td></tr>';
+    grid.innerHTML = '<p style="color:var(--ink-muted);grid-column:1/-1;">Nenhum produto cadastrado ainda. Clique em "+ Novo Produto" para começar.</p>';
     return;
   }
 
-  tbody.innerHTML = catalogoProdutos.map((p, idx) => `
-    <tr>
-      <td style="font-weight:500">${p.nome}</td>
-      <td>${p.preco > 0 ? BRL_RAW_plain(p.preco) : '<span style="color:var(--ink-muted);">A combinar</span>'}</td>
-      <td>
-        <button class="btn btn-ghost btn-sm" onclick="editarProduto(${idx})" title="Editar">✏️</button>
-        <button class="btn btn-ghost btn-sm" onclick="deletarProduto(${idx})" title="Excluir" style="color:var(--red)">🗑</button>
-      </td>
-    </tr>`).join('');
+  grid.innerHTML = catalogoProdutos.map((p, idx) => `
+    <div class="produto-admin-card">
+      <div class="produto-admin-thumb">
+        ${p.foto ? `<img src="${p.foto}" alt="${p.nome}">` : '🎉'}
+      </div>
+      <div class="produto-admin-info">
+        <div class="produto-admin-nome">${p.nome}</div>
+        <div class="produto-admin-tema">${p.categoria || 'Sem categoria'}</div>
+        <div class="produto-admin-preco">${p.preco > 0 ? BRL_RAW_plain(p.preco) : 'A combinar'}</div>
+        <div class="produto-admin-actions">
+          <button class="btn btn-ghost btn-sm" onclick="editarProduto(${idx})">✏️ Editar</button>
+          <button class="btn btn-ghost btn-sm" onclick="deletarProduto(${idx})" style="color:var(--red)">🗑</button>
+        </div>
+      </div>
+    </div>`).join('');
 }
 
 let _editandoProdutoIdx = null;
@@ -2753,35 +2866,106 @@ function abrirModalProduto(idx = null) {
   const titulo = document.getElementById('modalProdutoTitle');
   const nomeInput = document.getElementById('pNome');
   const precoInput = document.getElementById('pPreco');
+  const categoriaInput = document.getElementById('pCategoria');
+  const descricaoInput = document.getElementById('pDescricao');
+  const fotoInput = document.getElementById('pFotoUrl');
+
+  document.getElementById('adicionaisContainer').innerHTML = '';
 
   if (idx !== null) {
     const p = catalogoProdutos[idx];
     titulo.textContent = 'Editar Produto';
     nomeInput.value = p.nome;
     precoInput.value = p.preco || '';
+    categoriaInput.value = p.categoria || 'Aniversário';
+    descricaoInput.value = p.descricao || '';
+    fotoInput.value = p.foto || '';
+    (p.adicionais || []).forEach(a => adicionarLinhaAdicional(a.nome, a.preco));
   } else {
     titulo.textContent = 'Novo Produto';
     nomeInput.value = '';
     precoInput.value = '';
+    categoriaInput.value = 'Aniversário';
+    descricaoInput.value = '';
+    fotoInput.value = '';
   }
+
+  if (fotoInput.value) atualizarPreviewFoto(); else resetPreviewFoto();
+
   document.getElementById('modalProduto').classList.add('open');
   setTimeout(() => nomeInput.focus(), 100);
 }
 
 function editarProduto(idx) { abrirModalProduto(idx); }
 
+// ── Preview da foto por link ───────────────────────────────────────────────
+function atualizarPreviewFoto() {
+  const url = document.getElementById('pFotoUrl').value.trim();
+  const img = document.getElementById('fotoPreviewImg');
+  const placeholder = document.getElementById('fotoPreviewPlaceholder');
+  if (!url) { img.style.display = 'none'; placeholder.style.display = 'block'; return; }
+  img.onload = () => { img.style.display = 'block'; placeholder.style.display = 'none'; };
+  img.onerror = () => {
+    img.style.display = 'none'; placeholder.style.display = 'block';
+    placeholder.innerHTML = '<span class="icon">⚠️</span>Não foi possível carregar essa imagem.<br>Confira se o link está correto.';
+  };
+  img.src = url;
+}
+
+function resetPreviewFoto() {
+  document.getElementById('fotoPreviewImg').style.display = 'none';
+  document.getElementById('fotoPreviewImg').src = '';
+  document.getElementById('fotoPreviewPlaceholder').style.display = 'block';
+  document.getElementById('fotoPreviewPlaceholder').innerHTML = '<span class="icon">📷</span>Cole o link da imagem abaixo';
+}
+
+function toggleAjudaFoto() {
+  const conteudo = document.getElementById('ajudaFotoConteudo');
+  const icon = document.getElementById('ajudaFotoIcon');
+  const aberto = conteudo.style.display === 'block';
+  conteudo.style.display = aberto ? 'none' : 'block';
+  icon.textContent = aberto ? '▸' : '▾';
+}
+
+// ── Adicionais ───────────────────────────────────────────────────────────────
+function adicionarLinhaAdicional(nome = '', preco = '') {
+  const container = document.getElementById('adicionaisContainer');
+  const row = document.createElement('div');
+  row.className = 'adicional-row';
+  row.innerHTML = `
+    <input type="text" placeholder="Ex: Pessoa extra" value="${nome}" class="adicional-nome">
+    <input type="number" placeholder="Preço" step="0.01" value="${preco}" class="adicional-preco">
+    <button type="button" onclick="this.parentElement.remove()">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+function coletarAdicionais() {
+  const rows = document.querySelectorAll('#adicionaisContainer .adicional-row');
+  const adicionais = [];
+  rows.forEach(row => {
+    const nome = row.querySelector('.adicional-nome').value.trim();
+    const preco = parseFloat(row.querySelector('.adicional-preco').value) || 0;
+    if (nome) adicionais.push({ id: 'ad_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), nome, preco });
+  });
+  return adicionais;
+}
+
 async function salvarProduto() {
   const nome = document.getElementById('pNome').value.trim();
   const preco = parseFloat(document.getElementById('pPreco').value) || 0;
+  const categoria = document.getElementById('pCategoria').value;
+  const descricao = document.getElementById('pDescricao').value.trim();
+  const foto = document.getElementById('pFotoUrl').value.trim() || null;
+  const adicionais = coletarAdicionais();
   if (!nome) { showToast('Preencha o nome do produto', 'error'); return; }
 
   if (_editandoProdutoIdx !== null) {
-    catalogoProdutos[_editandoProdutoIdx].nome = nome;
-    catalogoProdutos[_editandoProdutoIdx].preco = preco;
+    Object.assign(catalogoProdutos[_editandoProdutoIdx], { nome, preco, categoria, descricao, foto, adicionais });
     showToast('Produto atualizado ✓', 'success');
   } else {
     const id = 'p_' + Date.now();
-    catalogoProdutos.push({ id, nome, preco });
+    catalogoProdutos.push({ id, nome, preco, categoria, descricao, foto, adicionais });
     showToast('Produto adicionado ✓', 'success');
   }
 
@@ -3931,7 +4115,7 @@ function updateTarefasBadge() {
   const producao = getProducao().filter(v => !isPersonalizado(v)).length;
   const personalizados = getPersonalizadosAlerta().length;
 
-  const totalGeral = pgPendente + aguardando + agendadas + producao + personalizados;
+  const totalGeral = pgPendente + aguardando + agendadas + producao + personalizados + pedidosPendentesSite.length;
 
   const badge = document.getElementById('navAlertCount');
   if (!badge) return;
@@ -4009,6 +4193,87 @@ function cancelarMassa() {
   renderTarefas();
 }
 
+// ============================================================
+// PEDIDOS DO SITE — confirmação manual antes de virar venda
+// ============================================================
+// Um pedido do site NUNCA é gravado direto na coleção `vendas`.
+// Ele fica em `pedidos_pendentes` até o usuário confirmar aqui,
+// e só então usa a MESMA função saveVendaRemote() que todo o
+// resto do sistema já usa — sem caminho paralelo de escrita.
+
+async function confirmarPedidoSite(docId) {
+  const ped = pedidosPendentesSite.find(p => p._docId === docId);
+  if (!ped) return;
+  if (!confirm(`Confirmar pagamento de ${ped.nomeComprador} (${BRL(ped.valorTotal||0)})? Isso vai criar a venda no sistema.`)) return;
+
+  const produtoStr = (ped.itens || []).map(i => {
+    const adicionaisTxt = (i.adicionais && i.adicionais.length) ? ` (+ ${i.adicionais.map(a=>a.nome).join(', ')})` : '';
+    return i.nome + adicionaisTxt;
+  }).join(', ');
+
+  const id = Date.now().toString(); // mesmo padrão de ID usado em toda venda manual
+  const v = {
+    id,
+    status: 'finalizado',
+    data: today(),
+    contato: `${ped.nomeComprador || '—'} (${ped.whatsapp || ''})`,
+    fonte: 'catálogo',
+    valorProd: ped.valorTotal || 0,
+    produto: produtoStr,
+    sinal: ped.valorTotal || 0,
+    valorPago: ped.valorTotal || 0,
+    obs: ped.obs || '',
+    dataFinalizacao: today(),
+    _origem: 'site',
+  };
+
+  vendas.unshift(v);
+  save();
+  await saveVendaRemote(v); // mesma função usada em qualquer outra venda do sistema
+
+  await marcarPedidoSiteProcessado(docId, 'confirmado');
+  showToast('Venda lançada com sucesso ✓', 'success');
+  renderPage(currentPage);
+}
+
+async function descartarPedidoSite(docId) {
+  const ped = pedidosPendentesSite.find(p => p._docId === docId);
+  if (!ped) return;
+  if (!confirm(`Descartar o pedido de ${ped.nomeComprador}? Isso não cria nenhuma venda.`)) return;
+  await marcarPedidoSiteProcessado(docId, 'descartado');
+  showToast('Pedido descartado', '');
+  renderTarefas();
+}
+
+async function marcarPedidoSiteProcessado(docId, status) {
+  if (!db) return;
+  try {
+    await db.collection('pedidos_pendentes').doc(docId).update({ status, processadoEm: new Date().toISOString() });
+  } catch(e) { console.warn('Erro ao atualizar pedido do site:', e); }
+  pedidosPendentesSite = pedidosPendentesSite.filter(p => p._docId !== docId);
+}
+
+function abrirDetalhesPedidoSite(docId) {
+  const ped = pedidosPendentesSite.find(p => p._docId === docId);
+  if (!ped) return;
+  const body = document.getElementById('detalhesFormBody');
+  if (!body) { alert(ped.obs || 'Sem observações.'); return; }
+
+  const campos = parseObsFormulario ? parseObsFormulario(ped.obs) : null;
+  if (campos) {
+    body.innerHTML = Object.entries(campos).map(([chave, valor]) => `
+      <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+        <div style="font-size:11px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.5px;">${chave.replace(/</g,'&lt;')}</div>
+        <div style="font-size:14px;color:var(--ink);margin-top:2px;">${valor.replace(/</g,'&lt;')}</div>
+      </div>`).join('');
+  } else {
+    body.innerHTML = `<p style="font-size:13.5px;color:var(--ink-light);white-space:pre-wrap;">${(ped.obs||'Sem observações.').replace(/</g,'&lt;')}</p>`;
+  }
+  const btnConfirmacao = document.getElementById('btnIrParaConfirmacao');
+  if (btnConfirmacao) btnConfirmacao.style.display = 'none';
+  document.getElementById('modalDetalhesForm')?.classList.add('open');
+}
+
 function renderTarefas() {
   const vendasPendentes = getPendentes(); // aguardando + pg-pendente (atrasados)
   const fluxoLista = getPendentesFluxo();
@@ -4051,7 +4316,39 @@ function renderTarefas() {
       </div>`;
   }
 
-  if (totalGeral === 0) {
+  // Pedidos do site aguardando confirmação de pagamento
+  let htmlPedidosSite = '';
+  if (pedidosPendentesSite.length > 0 && (tarefaFiltroAtivo === 'all')) {
+    htmlPedidosSite = pedidosPendentesSite.map(ped => {
+      const dataFmt = (ped.criadoEm || '').split('T')[0]?.split('-').reverse().join('/') || '';
+      const produtosResumo = (ped.itens || []).map(i => i.nome).join(', ');
+      return `
+      <div class="tarefa-card card-pedido-site" style="margin-bottom:14px;">
+        <div class="tarefa-dias-badge">
+          <div class="tarefa-dias-num">🆕</div>
+          <div class="tarefa-dias-label" style="font-size:7px;">SITE</div>
+        </div>
+        <div class="tarefa-info">
+          <div class="tarefa-contato">
+            <span class="badge-pedido-site">Novo Pedido do Site</span>
+            ${ped.nomeComprador || '—'} ${ped.whatsapp ? `<button class="btn-copy-tel" onclick="event.stopPropagation();copiarTelefone('${ped.whatsapp.replace(/'/g,"\\'")}')" title="Copiar número">📋</button><a href="${linkWhatsApp(ped.whatsapp)}" target="_blank" class="btn-copy-tel" onclick="event.stopPropagation()" title="Abrir WhatsApp">💬</a>` : ''}
+          </div>
+          <div class="tarefa-produto">${produtosResumo || '—'}</div>
+          <div class="tarefa-meta">
+            <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 ${dataFmt}</span>
+            <span class="tarefa-chip" style="background:var(--rose-light);color:var(--rose-dark);font-weight:700">💰 ${BRL(ped.valorTotal||0)}</span>
+            ${ped.obs ? `<span class="tarefa-chip chip-form-detalhes" onclick="event.stopPropagation();abrirDetalhesPedidoSite('${ped._docId}')" title="Ver detalhes">📋 Ver detalhes</span>` : ''}
+          </div>
+        </div>
+        <div class="tarefa-actions">
+          <button class="btn btn-primary btn-sm" onclick="confirmarPedidoSite('${ped._docId}')" style="background:var(--green);">✓ Pagamento Confirmado</button>
+          <button class="btn btn-ghost btn-sm" onclick="descartarPedidoSite('${ped._docId}')">Descartar</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  if (totalGeral === 0 && pedidosPendentesSite.length === 0) {
     document.getElementById('tarefasList').innerHTML = htmlBackup + `
       <div class="tarefas-empty">
         <div class="big-icon">🎉</div>
@@ -4062,7 +4359,7 @@ function renderTarefas() {
   }
 
   const f = tarefaFiltroAtivo;
-  let html = htmlBackup;
+  let html = htmlBackup + htmlPedidosSite;
 
   const opts = STATUS_OPTS.map(o=>`<option value="${o.v}">${o.l}</option>`).join('');
 
