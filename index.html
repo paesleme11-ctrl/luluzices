@@ -231,6 +231,32 @@
   .btn-add-adicional:hover { border-color: var(--rose); color: var(--rose); }
 
   /* CARD DE PEDIDO PENDENTE (site) NAS TAREFAS */
+  /* SITE DE VENDAS — sub-tabs internas */
+  .site-subtabs {
+    display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap;
+    border-bottom: 1.5px solid var(--border); padding-bottom: 0;
+  }
+  .site-subtab {
+    padding: 10px 18px; font-size: 13px; font-weight: 600; color: var(--ink-muted);
+    cursor: pointer; border-bottom: 2.5px solid transparent; margin-bottom: -1.5px;
+  }
+  .site-subtab:hover { color: var(--rose); }
+  .site-subtab.active { color: var(--rose); border-bottom-color: var(--rose); }
+  .site-subpage { display: none; }
+  .site-subpage.active { display: block; }
+
+  .orcamento-toggle-row { background: var(--cream); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .orcamento-check { display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 500; cursor: pointer; color: var(--ink); }
+  .orcamento-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--rose); cursor: pointer; flex-shrink: 0; }
+
+  .cor-site-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+  }
+  .cor-site-row input[type="color"] { width: 48px; height: 40px; border-radius: 8px; border: 1.5px solid var(--border); cursor: pointer; }
+  .cor-site-desc { font-size: 11.5px; color: var(--ink-muted); }
+
   .card-pedido-site {
     background: linear-gradient(135deg, #fff, var(--rose-light));
     border: 1.5px solid var(--rose);
@@ -635,6 +661,7 @@
   <div class="nav-item" onclick="goTo('confirmacao')"><span class="nav-icon">📲</span> Confirmação Presença</div>
   <div class="nav-section">Configurações</div>
   <div class="nav-item" onclick="goTo('produtos')"><span class="nav-icon">🛒</span> Produtos</div>
+  <div class="nav-item" onclick="goTo('site')"><span class="nav-icon">🌐</span> Site de Vendas</div>
   <div class="nav-item" onclick="goTo('metas')"><span class="nav-icon">⚙️</span> Configurações</div>
   <div class="sidebar-bottom">
     <div class="month-badge" id="monthBadge">—</div>
@@ -990,6 +1017,94 @@
     <div class="produtos-admin-grid" id="produtosAdminGrid"></div>
   </div>
 
+  <!-- SITE DE VENDAS -->
+  <div class="page" id="page-site">
+    <div class="page-header" style="margin-bottom:16px;">
+      <div>
+        <h2 style="font-family:'DM Serif Display',serif;font-size:22px;">Site de Vendas</h2>
+        <p style="font-size:13px;color:var(--ink-muted);margin-top:2px;">Catálogo, aparência e banners do site autônomo de convites</p>
+      </div>
+    </div>
+
+    <div class="site-subtabs">
+      <div class="site-subtab active" onclick="goToSiteTab('produtos')" data-tab="produtos">🛍️ Produtos do Site</div>
+      <div class="site-subtab" onclick="goToSiteTab('cores')" data-tab="cores">🎨 Cores</div>
+      <div class="site-subtab" onclick="goToSiteTab('logo')" data-tab="logo">🖼️ Logo</div>
+      <div class="site-subtab" onclick="goToSiteTab('banners')" data-tab="banners">📣 Banners</div>
+    </div>
+
+    <!-- SUB: PRODUTOS DO SITE -->
+    <div class="site-subpage active" id="site-sub-produtos">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+        <p style="font-size:13px;color:var(--ink-muted);max-width:480px;">Catálogo específico do site, com foto, descrição e adicionais visíveis para o cliente.</p>
+        <button class="btn btn-primary" onclick="abrirModalProdutoSite()">+ Novo Produto do Site</button>
+      </div>
+      <div class="produtos-admin-grid" id="produtosSiteGrid"></div>
+    </div>
+
+    <!-- SUB: CORES -->
+    <div class="site-subpage" id="site-sub-cores">
+      <div class="card" style="padding:26px;max-width:640px;">
+        <div class="cor-site-row">
+          <div><strong>Cor Principal</strong><br><span class="cor-site-desc">Botões, preços e destaques</span></div>
+          <input type="color" id="corSitePrincipal" value="#e8546a" onchange="salvarCoresSite()">
+        </div>
+        <div class="cor-site-row">
+          <div><strong>Cor de Fundo</strong><br><span class="cor-site-desc">Plano de fundo geral do site</span></div>
+          <input type="color" id="corSiteFundo" value="#fdf6f0" onchange="salvarCoresSite()">
+        </div>
+        <div class="cor-site-row">
+          <div><strong>Cor dos Cards</strong><br><span class="cor-site-desc">Fundo dos cards de produto</span></div>
+          <input type="color" id="corSiteCard" value="#ffffff" onchange="salvarCoresSite()">
+        </div>
+        <div class="cor-site-row">
+          <div><strong>Cor do Texto</strong><br><span class="cor-site-desc">Textos principais do site</span></div>
+          <input type="color" id="corSiteTexto" value="#1a1214" onchange="salvarCoresSite()">
+        </div>
+        <div class="cor-site-row" style="border-bottom:none;">
+          <div><strong>Cor do Texto Secundário</strong><br><span class="cor-site-desc">Descrições e legendas</span></div>
+          <input type="color" id="corSiteTextoMuted" value="#9a8890" onchange="salvarCoresSite()">
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="restaurarCoresSitePadrao()" style="margin-top:14px;">↺ Restaurar cores padrão</button>
+      </div>
+    </div>
+
+    <!-- SUB: LOGO -->
+    <div class="site-subpage" id="site-sub-logo">
+      <div class="card" style="padding:26px;max-width:480px;">
+        <div class="foto-preview-box" id="logoPreviewBox" style="margin-bottom:12px;">
+          <div class="foto-preview-placeholder" id="logoPreviewPlaceholder">
+            <span class="icon">🖼️</span>
+            Cole o link da logo abaixo
+          </div>
+          <img id="logoPreviewImg" style="display:none;max-height:80px;">
+        </div>
+        <input type="text" id="logoUrl" placeholder="Link da imagem da logo" oninput="atualizarPreviewLogo()">
+        <div class="ajuda-foto-toggle" onclick="toggleAjudaFotoGenerica('ajudaLogoConteudo','ajudaLogoIcon')">
+          <span id="ajudaLogoIcon">▸</span> Como conseguir o link (grátis, pelo GitHub)
+        </div>
+        <div class="ajuda-foto-conteudo" id="ajudaLogoConteudo" style="display:none;">
+          <ol>
+            <li>Acesse o repositório do site no GitHub</li>
+            <li>Suba a logo na pasta <code>fotos-produtos</code> (ou crie <code>logo</code>)</li>
+            <li>Clique na imagem enviada → botão <strong>"Raw"</strong></li>
+            <li>Copie a URL e cole no campo acima</li>
+          </ol>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="salvarLogoSite()" style="margin-top:14px;">Salvar Logo</button>
+      </div>
+    </div>
+
+    <!-- SUB: BANNERS -->
+    <div class="site-subpage" id="site-sub-banners">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+        <p style="font-size:13px;color:var(--ink-muted);max-width:480px;">Slides do carrossel no topo do site — cada um pode levar a um produto ou categoria ao ser clicado.</p>
+        <button class="btn btn-primary" onclick="abrirModalBanner()">+ Novo Banner</button>
+      </div>
+      <div class="produtos-admin-grid" id="bannersGrid"></div>
+    </div>
+  </div>
+
   <div class="page" id="page-metas">
     <div class="grid-2">
       <div class="card">
@@ -1311,6 +1426,137 @@
   </div>
 </div>
 
+<!-- MODAL: PRODUTO DO SITE -->
+<div class="modal-overlay" id="modalProdutoSite">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <span class="modal-title" id="modalProdutoSiteTitle">Novo Produto do Site</span>
+      <button class="modal-close" onclick="closeModal('modalProdutoSite')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Foto do produto</label>
+        <div class="foto-preview-box" id="fotoPreviewBoxSite">
+          <div class="foto-preview-placeholder" id="fotoPreviewPlaceholderSite">
+            <span class="icon">📷</span>
+            Cole o link da imagem abaixo
+          </div>
+          <img id="fotoPreviewImgSite" style="display:none;">
+        </div>
+        <input type="text" id="psFotoUrl" placeholder="Link da imagem (ver ajuda abaixo)" oninput="atualizarPreviewFotoSite()" style="margin-top:8px;">
+        <div class="ajuda-foto-toggle" onclick="toggleAjudaFotoGenerica('ajudaFotoSiteConteudo','ajudaFotoSiteIcon')">
+          <span id="ajudaFotoSiteIcon">▸</span> Como conseguir o link (grátis, pelo GitHub)
+        </div>
+        <div class="ajuda-foto-conteudo" id="ajudaFotoSiteConteudo" style="display:none;">
+          <ol>
+            <li>Acesse o repositório do site no GitHub</li>
+            <li>Entre em <code>fotos-produtos</code> → "Add file" → "Upload files"</li>
+            <li>Suba a foto e clique em "Commit changes"</li>
+            <li>Clique na imagem enviada → botão <strong>"Raw"</strong></li>
+            <li>Copie a URL e cole no campo acima</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="form-row cols-2">
+        <div class="form-group"><label>Nome / Tema</label>
+          <input type="text" id="psNome" placeholder="Ex: Bluey, Naruto...">
+        </div>
+        <div class="form-group"><label>Categoria</label>
+          <select id="psCategoria">
+            <option value="Aniversário">Aniversário</option>
+            <option value="Casamento">Casamento</option>
+            <option value="Debutante">Debutante</option>
+            <option value="Infantil">Infantil</option>
+            <option value="Chá de Bebê">Chá de Bebê</option>
+            <option value="Formatura">Formatura</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group orcamento-toggle-row">
+        <label class="orcamento-check">
+          <input type="checkbox" id="psSobConsulta" onchange="toggleCampoPrecoSite()">
+          <span>Sem preço fixo — cliente solicita orçamento pelo WhatsApp</span>
+        </label>
+      </div>
+
+      <div class="form-group" id="psPrecoGroup">
+        <label>Preço (R$)</label>
+        <input type="number" id="psPreco" step="0.01" min="0" placeholder="0,00">
+      </div>
+
+      <div class="form-group">
+        <label>Descrição (aparece no site)</label>
+        <textarea id="psDescricao" placeholder="Descrição do convite para o cliente..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Adicionais (não se aplica a produtos sob consulta)</label>
+        <div id="adicionaisContainerSite"></div>
+        <button type="button" class="btn-add-adicional" onclick="adicionarLinhaAdicionalSite()">+ Adicionar opção extra</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modalProdutoSite')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarProdutoSite()">Salvar Produto</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: BANNER -->
+<div class="modal-overlay" id="modalBanner">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <span class="modal-title" id="modalBannerTitle">Novo Banner</span>
+      <button class="modal-close" onclick="closeModal('modalBanner')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Foto do banner</label>
+        <div class="foto-preview-box" id="fotoPreviewBoxBanner">
+          <div class="foto-preview-placeholder" id="fotoPreviewPlaceholderBanner">
+            <span class="icon">📷</span>
+            Cole o link da imagem abaixo
+          </div>
+          <img id="fotoPreviewImgBanner" style="display:none;">
+        </div>
+        <input type="text" id="bnFotoUrl" placeholder="Link da imagem do banner" oninput="atualizarPreviewFotoBanner()" style="margin-top:8px;">
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Tag (selo pequeno)</label>
+          <input type="text" id="bnTag" placeholder="Ex: Novidade, Mais vendido...">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Título</label>
+          <input type="text" id="bnTitulo" placeholder="Ex: Convites que fazem a festa começar antes">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Subtítulo</label>
+          <input type="text" id="bnSubtitulo" placeholder="Ex: Personalizado com nome, data e local">
+        </div>
+      </div>
+      <div class="form-row cols-2">
+        <div class="form-group"><label>Ao clicar, leva para</label>
+          <select id="bnTipoDestino" onchange="onBannerTipoDestinoChange()">
+            <option value="categoria">Uma categoria</option>
+            <option value="produto">Um produto específico</option>
+          </select>
+        </div>
+        <div class="form-group"><label id="bnDestinoLabel">Categoria</label>
+          <select id="bnDestino"></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modalBanner')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarBanner()">Salvar Banner</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div id="loadingOverlay" style="position:fixed;inset:0;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px">
@@ -1398,6 +1644,7 @@ async function loadFromFirebase() {
     if (metasSnap.exists) { metas = JSON.parse(metasSnap.data().data||'{}'); LS.set('metas',metas); }
 
     await loadProdutosRemote();
+    await loadSiteConfigRemote();
 
     db.collection('vendas').onSnapshot(snap => {
       snap.docChanges().forEach(ch => {
@@ -1458,8 +1705,8 @@ setTimeout(() => {
 // ============================================================
 // NAVIGATION
 // ============================================================
-const PAGES = ['dashboard','anual','tarefas','vendas','fluxo','confirmacao','produtos','metas'];
-const PAGE_TITLES = { dashboard:'Dashboard', anual:'Dashboard Anual', tarefas:'Tarefas do Dia', vendas:'Vendas', fluxo:'Fluxo de Caixa', confirmacao:'Confirmação de Presença', produtos:'Produtos', metas:'Configurações' };
+const PAGES = ['dashboard','anual','tarefas','vendas','fluxo','confirmacao','produtos','site','metas'];
+const PAGE_TITLES = { dashboard:'Dashboard', anual:'Dashboard Anual', tarefas:'Tarefas do Dia', vendas:'Vendas', fluxo:'Fluxo de Caixa', confirmacao:'Confirmação de Presença', produtos:'Produtos', site:'Site de Vendas', metas:'Configurações' };
 let currentPage = 'dashboard';
 
 function goTo(page) {
@@ -1484,6 +1731,7 @@ function renderPage(p) {
   if (p === 'fluxo') renderFluxo();
   if (p === 'metas') renderMetas();
   if (p === 'produtos') renderProdutos();
+  if (p === 'site') renderSitePage();
   if (p === 'confirmacao') renderConfirmacaoPage();
 }
 
@@ -4272,6 +4520,361 @@ function abrirDetalhesPedidoSite(docId) {
   const btnConfirmacao = document.getElementById('btnIrParaConfirmacao');
   if (btnConfirmacao) btnConfirmacao.style.display = 'none';
   document.getElementById('modalDetalhesForm')?.classList.add('open');
+}
+
+// ============================================================
+// SITE DE VENDAS — produtos próprios, cores, logo, banners
+// ============================================================
+
+// Estado — carregado do Firebase, coleções próprias do site
+let produtosSite = LS.get('produtosSite', []);
+let coresSite = LS.get('coresSite', { principal:'#e8546a', fundo:'#fdf6f0', card:'#ffffff', texto:'#1a1214', textoMuted:'#9a8890' });
+let logoSite = LS.get('logoSite', null);
+let bannersSite = LS.get('bannersSite', []);
+
+function goToSiteTab(tab) {
+  document.querySelectorAll('.site-subtab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+  document.querySelectorAll('.site-subpage').forEach(el => el.classList.remove('active'));
+  document.getElementById('site-sub-' + tab).classList.add('active');
+}
+
+function renderSitePage() {
+  renderProdutosSiteGrid();
+  carregarCoresSiteUI();
+  carregarLogoSiteUI();
+  renderBannersGrid();
+}
+
+// ── Firebase: carregar/salvar tudo do site ──────────────────────────────────
+async function loadSiteConfigRemote() {
+  if (!db) return;
+  try {
+    const [prodSnap, coresSnap, logoSnap, bannersSnap] = await Promise.all([
+      db.collection('config').doc('produtosSite').get(),
+      db.collection('config').doc('coresSite').get(),
+      db.collection('config').doc('logoSite').get(),
+      db.collection('config').doc('bannersSite').get(),
+    ]);
+    if (prodSnap.exists) { produtosSite = JSON.parse(prodSnap.data().data || '[]'); LS.set('produtosSite', produtosSite); }
+    if (coresSnap.exists) { coresSite = coresSnap.data(); LS.set('coresSite', coresSite); }
+    if (logoSnap.exists) { logoSite = logoSnap.data().url || null; LS.set('logoSite', logoSite); }
+    if (bannersSnap.exists) { bannersSite = JSON.parse(bannersSnap.data().data || '[]'); LS.set('bannersSite', bannersSite); }
+  } catch(e) { console.warn('Erro ao carregar config do site:', e); }
+}
+
+async function saveProdutosSiteRemote() {
+  LS.set('produtosSite', produtosSite);
+  if (!db) return;
+  try { await db.collection('config').doc('produtosSite').set({ data: JSON.stringify(produtosSite) }); } catch(e) {}
+}
+async function saveCoresSiteRemote() {
+  LS.set('coresSite', coresSite);
+  if (!db) return;
+  try { await db.collection('config').doc('coresSite').set(coresSite); } catch(e) {}
+}
+async function saveLogoSiteRemote() {
+  LS.set('logoSite', logoSite);
+  if (!db) return;
+  try { await db.collection('config').doc('logoSite').set({ url: logoSite }); } catch(e) {}
+}
+async function saveBannersSiteRemote() {
+  LS.set('bannersSite', bannersSite);
+  if (!db) return;
+  try { await db.collection('config').doc('bannersSite').set({ data: JSON.stringify(bannersSite) }); } catch(e) {}
+}
+
+// ── PRODUTOS DO SITE ─────────────────────────────────────────────────────────
+function renderProdutosSiteGrid() {
+  const grid = document.getElementById('produtosSiteGrid');
+  if (!grid) return;
+  if (!produtosSite.length) {
+    grid.innerHTML = '<p style="color:var(--ink-muted);grid-column:1/-1;">Nenhum produto do site cadastrado ainda.</p>';
+    return;
+  }
+  grid.innerHTML = produtosSite.map((p, idx) => `
+    <div class="produto-admin-card">
+      <div class="produto-admin-thumb">${p.foto ? `<img src="${p.foto}" alt="${p.nome}">` : '🎉'}</div>
+      <div class="produto-admin-info">
+        <div class="produto-admin-nome">${p.nome}</div>
+        <div class="produto-admin-tema">${p.categoria || 'Sem categoria'}</div>
+        <div class="produto-admin-preco">${p.sobConsulta ? '💬 Sob consulta' : BRL_RAW_plain(p.preco)}</div>
+        <div class="produto-admin-actions">
+          <button class="btn btn-ghost btn-sm" onclick="editarProdutoSite(${idx})">✏️ Editar</button>
+          <button class="btn btn-ghost btn-sm" onclick="excluirProdutoSite(${idx})" style="color:var(--red)">🗑</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+let _editandoProdutoSiteIdx = null;
+
+function toggleCampoPrecoSite() {
+  const sobConsulta = document.getElementById('psSobConsulta').checked;
+  document.getElementById('psPrecoGroup').style.display = sobConsulta ? 'none' : 'flex';
+}
+
+function abrirModalProdutoSite(idx = null) {
+  _editandoProdutoSiteIdx = idx;
+  document.getElementById('adicionaisContainerSite').innerHTML = '';
+
+  if (idx !== null) {
+    const p = produtosSite[idx];
+    document.getElementById('modalProdutoSiteTitle').textContent = 'Editar Produto do Site';
+    document.getElementById('psNome').value = p.nome || '';
+    document.getElementById('psCategoria').value = p.categoria || 'Aniversário';
+    document.getElementById('psPreco').value = p.preco || '';
+    document.getElementById('psDescricao').value = p.descricao || '';
+    document.getElementById('psFotoUrl').value = p.foto || '';
+    document.getElementById('psSobConsulta').checked = !!p.sobConsulta;
+    (p.adicionais || []).forEach(a => adicionarLinhaAdicionalSite(a.nome, a.preco));
+  } else {
+    document.getElementById('modalProdutoSiteTitle').textContent = 'Novo Produto do Site';
+    document.getElementById('psNome').value = '';
+    document.getElementById('psCategoria').value = 'Aniversário';
+    document.getElementById('psPreco').value = '';
+    document.getElementById('psDescricao').value = '';
+    document.getElementById('psFotoUrl').value = '';
+    document.getElementById('psSobConsulta').checked = false;
+  }
+  toggleCampoPrecoSite();
+  if (document.getElementById('psFotoUrl').value) atualizarPreviewFotoSite(); else resetPreviewFotoGenerica('fotoPreviewImgSite','fotoPreviewPlaceholderSite');
+  document.getElementById('modalProdutoSite').classList.add('open');
+}
+
+function editarProdutoSite(idx) { abrirModalProdutoSite(idx); }
+
+function adicionarLinhaAdicionalSite(nome='', preco='') {
+  const container = document.getElementById('adicionaisContainerSite');
+  const row = document.createElement('div');
+  row.className = 'adicional-row';
+  row.innerHTML = `
+    <input type="text" placeholder="Ex: Pessoa extra" value="${nome}" class="adicional-nome">
+    <input type="number" placeholder="Preço" step="0.01" value="${preco}" class="adicional-preco">
+    <button type="button" onclick="this.parentElement.remove()">✕</button>`;
+  container.appendChild(row);
+}
+
+function coletarAdicionaisSite() {
+  const rows = document.querySelectorAll('#adicionaisContainerSite .adicional-row');
+  const adicionais = [];
+  rows.forEach(row => {
+    const nome = row.querySelector('.adicional-nome').value.trim();
+    const preco = parseFloat(row.querySelector('.adicional-preco').value) || 0;
+    if (nome) adicionais.push({ id: 'ad_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), nome, preco });
+  });
+  return adicionais;
+}
+
+async function salvarProdutoSite() {
+  const nome = document.getElementById('psNome').value.trim();
+  const categoria = document.getElementById('psCategoria').value;
+  const sobConsulta = document.getElementById('psSobConsulta').checked;
+  const preco = sobConsulta ? 0 : (parseFloat(document.getElementById('psPreco').value) || 0);
+  const descricao = document.getElementById('psDescricao').value.trim();
+  const foto = document.getElementById('psFotoUrl').value.trim() || null;
+  const adicionais = sobConsulta ? [] : coletarAdicionaisSite();
+
+  if (!nome) { showToast('Preencha o nome do produto', 'error'); return; }
+  if (!sobConsulta && preco <= 0) { showToast('Informe um preço válido, ou marque "Sob consulta"', 'error'); return; }
+
+  const id = (idx => idx !== null ? produtosSite[idx].id : 'ps_' + Date.now())(_editandoProdutoSiteIdx);
+  const produtoData = { id, nome, categoria, preco, descricao, foto, adicionais, sobConsulta };
+
+  if (_editandoProdutoSiteIdx !== null) produtosSite[_editandoProdutoSiteIdx] = produtoData;
+  else produtosSite.push(produtoData);
+
+  await saveProdutosSiteRemote();
+  renderProdutosSiteGrid();
+  closeModal('modalProdutoSite');
+  showToast('Produto do site salvo ✓', 'success');
+}
+
+async function excluirProdutoSite(idx) {
+  const p = produtosSite[idx];
+  if (!confirm(`Excluir "${p.nome}"?`)) return;
+  produtosSite.splice(idx, 1);
+  await saveProdutosSiteRemote();
+  renderProdutosSiteGrid();
+  showToast('Produto excluído', 'error');
+}
+
+// ── Foto genérica (produto do site / logo / banner) ────────────────────────
+function resetPreviewFotoGenerica(imgId, placeholderId) {
+  document.getElementById(imgId).style.display = 'none';
+  document.getElementById(imgId).src = '';
+  document.getElementById(placeholderId).style.display = 'block';
+  document.getElementById(placeholderId).innerHTML = '<span class="icon">📷</span>Cole o link da imagem abaixo';
+}
+
+function atualizarPreviewFotoSite() {
+  const url = document.getElementById('psFotoUrl').value.trim();
+  const img = document.getElementById('fotoPreviewImgSite'), ph = document.getElementById('fotoPreviewPlaceholderSite');
+  if (!url) { img.style.display='none'; ph.style.display='block'; return; }
+  img.onload = () => { img.style.display='block'; ph.style.display='none'; };
+  img.onerror = () => { img.style.display='none'; ph.style.display='block'; ph.innerHTML='<span class="icon">⚠️</span>Link inválido.'; };
+  img.src = url;
+}
+
+function atualizarPreviewLogo() {
+  const url = document.getElementById('logoUrl').value.trim();
+  const img = document.getElementById('logoPreviewImg'), ph = document.getElementById('logoPreviewPlaceholder');
+  if (!url) { img.style.display='none'; ph.style.display='block'; return; }
+  img.onload = () => { img.style.display='block'; ph.style.display='none'; };
+  img.onerror = () => { img.style.display='none'; ph.style.display='block'; ph.innerHTML='<span class="icon">⚠️</span>Link inválido.'; };
+  img.src = url;
+}
+
+function atualizarPreviewFotoBanner() {
+  const url = document.getElementById('bnFotoUrl').value.trim();
+  const img = document.getElementById('fotoPreviewImgBanner'), ph = document.getElementById('fotoPreviewPlaceholderBanner');
+  if (!url) { img.style.display='none'; ph.style.display='block'; return; }
+  img.onload = () => { img.style.display='block'; ph.style.display='none'; };
+  img.onerror = () => { img.style.display='none'; ph.style.display='block'; ph.innerHTML='<span class="icon">⚠️</span>Link inválido.'; };
+  img.src = url;
+}
+
+function toggleAjudaFotoGenerica(conteudoId, iconId) {
+  const conteudo = document.getElementById(conteudoId), icon = document.getElementById(iconId);
+  const aberto = conteudo.style.display === 'block';
+  conteudo.style.display = aberto ? 'none' : 'block';
+  icon.textContent = aberto ? '▸' : '▾';
+}
+
+// ── CORES DO SITE ────────────────────────────────────────────────────────────
+function carregarCoresSiteUI() {
+  document.getElementById('corSitePrincipal').value = coresSite.principal || '#e8546a';
+  document.getElementById('corSiteFundo').value = coresSite.fundo || '#fdf6f0';
+  document.getElementById('corSiteCard').value = coresSite.card || '#ffffff';
+  document.getElementById('corSiteTexto').value = coresSite.texto || '#1a1214';
+  document.getElementById('corSiteTextoMuted').value = coresSite.textoMuted || '#9a8890';
+}
+
+async function salvarCoresSite() {
+  coresSite = {
+    principal: document.getElementById('corSitePrincipal').value,
+    fundo: document.getElementById('corSiteFundo').value,
+    card: document.getElementById('corSiteCard').value,
+    texto: document.getElementById('corSiteTexto').value,
+    textoMuted: document.getElementById('corSiteTextoMuted').value,
+  };
+  await saveCoresSiteRemote();
+  showToast('Cores do site atualizadas ✓', 'success');
+}
+
+async function restaurarCoresSitePadrao() {
+  coresSite = { principal:'#e8546a', fundo:'#fdf6f0', card:'#ffffff', texto:'#1a1214', textoMuted:'#9a8890' };
+  carregarCoresSiteUI();
+  await saveCoresSiteRemote();
+  showToast('Cores padrão restauradas ✓', 'success');
+}
+
+// ── LOGO ─────────────────────────────────────────────────────────────────────
+function carregarLogoSiteUI() {
+  document.getElementById('logoUrl').value = logoSite || '';
+  if (logoSite) atualizarPreviewLogo(); else resetPreviewFotoGenerica('logoPreviewImg','logoPreviewPlaceholder');
+}
+
+async function salvarLogoSite() {
+  logoSite = document.getElementById('logoUrl').value.trim() || null;
+  await saveLogoSiteRemote();
+  showToast('Logo atualizada ✓', 'success');
+}
+
+// ── BANNERS ──────────────────────────────────────────────────────────────────
+function renderBannersGrid() {
+  const grid = document.getElementById('bannersGrid');
+  if (!grid) return;
+  if (!bannersSite.length) {
+    grid.innerHTML = '<p style="color:var(--ink-muted);grid-column:1/-1;">Nenhum banner cadastrado ainda.</p>';
+    return;
+  }
+  grid.innerHTML = bannersSite.map((b, idx) => `
+    <div class="produto-admin-card">
+      <div class="produto-admin-thumb">${b.foto ? `<img src="${b.foto}" alt="${b.titulo}">` : '📣'}</div>
+      <div class="produto-admin-info">
+        <div class="produto-admin-nome">${b.titulo || '(sem título)'}</div>
+        <div class="produto-admin-tema">${b.tipoDestino === 'produto' ? '→ produto específico' : '→ categoria: ' + (b.destino||'—')}</div>
+        <div class="produto-admin-actions">
+          <button class="btn btn-ghost btn-sm" onclick="editarBanner(${idx})">✏️ Editar</button>
+          <button class="btn btn-ghost btn-sm" onclick="excluirBanner(${idx})" style="color:var(--red)">🗑</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+let _editandoBannerIdx = null;
+
+function onBannerTipoDestinoChange() {
+  const tipo = document.getElementById('bnTipoDestino').value;
+  const select = document.getElementById('bnDestino');
+  const label = document.getElementById('bnDestinoLabel');
+  if (tipo === 'categoria') {
+    label.textContent = 'Categoria';
+    const categorias = [...new Set([...produtosSite.map(p=>p.categoria), ...catalogoProdutos.map(p=>p.categoria)].filter(Boolean))];
+    select.innerHTML = categorias.map(c => `<option value="${c}">${c}</option>`).join('') || '<option value="">Nenhuma categoria cadastrada</option>';
+  } else {
+    label.textContent = 'Produto';
+    select.innerHTML = produtosSite.map(p => `<option value="${p.id}">${p.nome}</option>`).join('') || '<option value="">Nenhum produto cadastrado</option>';
+  }
+}
+
+function abrirModalBanner(idx = null) {
+  _editandoBannerIdx = idx;
+  onBannerTipoDestinoChange(); // popula o select de destino antes de aplicar valor
+
+  if (idx !== null) {
+    const b = bannersSite[idx];
+    document.getElementById('modalBannerTitle').textContent = 'Editar Banner';
+    document.getElementById('bnFotoUrl').value = b.foto || '';
+    document.getElementById('bnTag').value = b.tag || '';
+    document.getElementById('bnTitulo').value = b.titulo || '';
+    document.getElementById('bnSubtitulo').value = b.subtitulo || '';
+    document.getElementById('bnTipoDestino').value = b.tipoDestino || 'categoria';
+    onBannerTipoDestinoChange();
+    document.getElementById('bnDestino').value = b.destino || '';
+  } else {
+    document.getElementById('modalBannerTitle').textContent = 'Novo Banner';
+    document.getElementById('bnFotoUrl').value = '';
+    document.getElementById('bnTag').value = '';
+    document.getElementById('bnTitulo').value = '';
+    document.getElementById('bnSubtitulo').value = '';
+    document.getElementById('bnTipoDestino').value = 'categoria';
+    onBannerTipoDestinoChange();
+  }
+  if (document.getElementById('bnFotoUrl').value) atualizarPreviewFotoBanner(); else resetPreviewFotoGenerica('fotoPreviewImgBanner','fotoPreviewPlaceholderBanner');
+  document.getElementById('modalBanner').classList.add('open');
+}
+
+function editarBanner(idx) { abrirModalBanner(idx); }
+
+async function salvarBanner() {
+  const foto = document.getElementById('bnFotoUrl').value.trim() || null;
+  const tag = document.getElementById('bnTag').value.trim();
+  const titulo = document.getElementById('bnTitulo').value.trim();
+  const subtitulo = document.getElementById('bnSubtitulo').value.trim();
+  const tipoDestino = document.getElementById('bnTipoDestino').value;
+  const destino = document.getElementById('bnDestino').value;
+
+  if (!titulo) { showToast('Preencha o título do banner', 'error'); return; }
+
+  const id = (idx => idx !== null ? bannersSite[idx].id : 'bn_' + Date.now())(_editandoBannerIdx);
+  const bannerData = { id, foto, tag, titulo, subtitulo, tipoDestino, destino };
+
+  if (_editandoBannerIdx !== null) bannersSite[_editandoBannerIdx] = bannerData;
+  else bannersSite.push(bannerData);
+
+  await saveBannersSiteRemote();
+  renderBannersGrid();
+  closeModal('modalBanner');
+  showToast('Banner salvo ✓', 'success');
+}
+
+async function excluirBanner(idx) {
+  if (!confirm('Excluir este banner?')) return;
+  bannersSite.splice(idx, 1);
+  await saveBannersSiteRemote();
+  renderBannersGrid();
+  showToast('Banner excluído', 'error');
 }
 
 function renderTarefas() {
