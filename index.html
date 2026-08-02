@@ -4164,11 +4164,10 @@ function setTarefaFilter(f) {
 }
 
 function getPendentes() {
-  const ontem = new Date(); ontem.setDate(ontem.getDate() - 1);
-  const ontemStr = ontem.toISOString().split('T')[0];
   return vendas.filter(v =>
     STATUS_PENDENTES.includes(statusClass(v.status)) &&
-    v.data && v.data <= ontemStr
+    v.data &&
+    infoPrazoPersonalizado(v).urgente
   ).sort((a,b) => a.data < b.data ? -1 : 1);
 }
 
@@ -4187,13 +4186,12 @@ function getPendentesFluxo() {
   return fluxo.filter(f => f.tipo === 'saida' && f.status === 'agendado' && f.data <= hoje);
 }
 
-/** Retorna pedidos em produção com mais de 0 dias de entrada (qualquer em produção) */
+/** Retorna pedidos em produção cujo prazo (configurado, em dias úteis) vence hoje ou já passou */
 function getProducao() {
-  const ontem = new Date(); ontem.setDate(ontem.getDate() - 1);
-  const ontemStr = ontem.toISOString().split('T')[0];
   return vendas.filter(v =>
     statusClass(v.status) === 'producao' &&
-    v.data && v.data <= ontemStr
+    v.data &&
+    infoPrazoPersonalizado(v).urgente
   ).sort((a,b) => (b.data||'') > (a.data||'') ? 1 : -1);
 }
 
