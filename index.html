@@ -811,7 +811,7 @@
       </div>
       <div class="table-wrap">
         <table id="recentTable">
-          <thead><tr><th>Status</th><th>Contato</th><th>Data</th><th>Produto</th><th>Fonte</th><th>Valor</th><th>Pago</th></tr></thead>
+          <thead><tr><th>Status</th><th>Contato</th><th>Data</th><th>Produto</th><th>Tema</th><th>Fonte</th><th>Valor</th><th>Pago</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -1294,6 +1294,12 @@
                  oninput="onProdutoInput()" onfocus="onProdutoInput()" onblur="setTimeout(fecharSugestoesProduto, 150)"
                  onkeydown="onProdutoKeydown(event)">
           <div id="produtoSugestoes" class="produto-sugestoes"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tema</label>
+          <input type="text" id="vTema" placeholder="Ex: Bluey, Naruto, Safári..." autocomplete="off">
         </div>
       </div>
       <div class="form-row cols-2">
@@ -2831,11 +2837,12 @@ function renderDashboard() {
         <td style="font-weight:500">${v.contato||'—'}</td>
         <td style="color:var(--ink-muted)">${v.data||'—'}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.produto||'—'}</td>
+        <td style="color:var(--ink-light)">${v.tema||'—'}</td>
         <td><span class="fonte-badge fonte-${fonteClass(v.fonte)}">${v.fonte||'—'}</span></td>
         <td style="font-weight:600">${BRL(v.valorProd)}</td>
         <td style="color:var(--green)">${BRL(v.valorPago)}</td>
       </tr>`).join('')
-    : '<tr><td colspan="7" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma venda no mês</td></tr>';
+    : '<tr><td colspan="8" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma venda no mês</td></tr>';
 }
 
 // ============================================================
@@ -3245,6 +3252,7 @@ function openModalVenda(v=null) {
   const autoTag = document.getElementById('vValorProdAutoTag');
   if (autoTag) autoTag.style.display = 'none';
   document.getElementById('vProduto').value = v?.produto || '';
+  document.getElementById('vTema').value = v?.tema || '';
   document.getElementById('vSinal').value = v?.sinal || '';
   document.getElementById('vValorPago').value = v?.valorPago || '';
   document.getElementById('vObs').value = v?.obs || '';
@@ -4296,6 +4304,7 @@ function saveVenda(forcarSalvar=false) {
     id: vendaEditId || Date.now().toString(), status: statusFinal, data: document.getElementById('vData').value,
     contato: document.getElementById('vContato').value.trim(), fonte: document.getElementById('vFonte').value,
     valorProd, produto: document.getElementById('vProduto').value.trim(), sinal: parseFloat(document.getElementById('vSinal').value)||0,
+    tema: document.getElementById('vTema').value.trim(),
     valorPago, obs: document.getElementById('vObs').value.trim(),
     prazo: document.getElementById('vPrazo')?.value || null,
     pagamento: document.querySelector('input[name="vPagamento"]:checked')?.value || null,
