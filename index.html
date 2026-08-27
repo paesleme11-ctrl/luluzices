@@ -390,6 +390,17 @@
   .tarefa-card.urgente { border-left:4px solid var(--red); }
   .tarefa-card.hoje { border-left:4px solid var(--amber); }
   .tarefa-card.personalizado { border-left:4px solid var(--purple); }
+  .card-pedido-site {
+    background: linear-gradient(135deg, #fff, var(--rose-light));
+    border: 1.5px solid var(--rose);
+  }
+  .card-pedido-site .tarefa-dias-badge { background: var(--rose); color: #fff; }
+  .badge-pedido-site {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--rose); color: #fff; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.4px;
+    margin-right: 6px;
+  }
   .tarefa-card.personalizado:hover { border-color:var(--purple); }
   .tarefa-card.personalizado-urgente { border-left:4px solid var(--red); background:#fffaf9; }
 
@@ -587,7 +598,8 @@
 
   /* Gráficos: altura ajustada pra caber legenda sem cortar */
   #chartAcumulado { max-height: 160px; }
-  #chartDia, #chartProdutos { max-height: 220px; }
+  #chartDia { max-height: 250px; }
+  #chartProdutos { max-height: 220px; }
   #chartOrigem { max-height: 200px; }
   .grid-charts-tres .card-body[style*="height:200px"] { height: 260px !important; }
 
@@ -1362,6 +1374,7 @@ const LS = {
 let vendas = LS.get('vendas', []);
 let fluxo  = LS.get('fluxo',  []);
 let metas  = LS.get('metas',  {});
+let pedidosPendentesForm = []; // leads do formulário externo aguardando confirmação/lançamento manual
 
 const firebaseConfigured = true;
 let db = null;
@@ -1428,6 +1441,20 @@ async function loadFromFirebase() {
         renderPage(currentPage);
       }
       updateTarefasBadge();
+    });
+
+    // Pedidos vindos do formulário externo — collection separada, NUNCA vira "venda"
+    // automaticamente. Segue o mesmo padrão seguro do listener de vendas acima:
+    // doc.id é sempre a chave de match, para não repetir o problema de IDs
+    // inconsistentes que já corrompeu dados no passado (extensão Chrome).
+    db.collection('pedidos_pendentes').where('status','==','pendente').onSnapshot(snap => {
+      pedidosPendentesForm = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      const temPendingLocal = snap.docChanges().some(ch => ch.doc.metadata.hasPendingWrites);
+      if (!temPendingLocal && currentPage === 'tarefas') renderTarefas();
+      updateTarefasBadge();
+    }, err => {
+      // Coleção pode não existir ainda (nenhum formulário preenchido até agora) — não é erro real
+      console.warn('Listener de pedidos_pendentes:', err.message);
     });
 
     setStatus(''); hideLoading();
@@ -2261,8 +2288,10 @@ function renderDashboard() {
 
   // byDay: sinal conta na data do pedido; restante (valorPago - sinal) conta na dataFinalizacao
   const byDay = {};
+  const vendasPorDia = {}; // contagem simples de pedidos por data de criação (para o gráfico)
   vm.filter(v => v.status !== 'cancelado').forEach(v => {
     if (!v.data) return;
+    vendasPorDia[v.data] = (vendasPorDia[v.data] || 0) + 1;
     const sinal = parseFloat(v.sinal) || 0;
     if (v.status === 'finalizado') {
       const valorPago = parseFloat(v.valorPago) || 0;
@@ -2340,6 +2369,7 @@ function renderDashboard() {
 
   const dayLabels = Object.keys(byDay).sort();
   const dayValues = dayLabels.map(d => byDay[d]);
+  const dayVendasCount = dayLabels.map(d => vendasPorDia[d] || 0);
   const todayStr = today();
   const barColors = dayLabels.map(d => d === todayStr ? corPrincipal : hexParaRgba(corPrincipal, 0.45));
 
@@ -2347,9 +2377,27 @@ function renderDashboard() {
     type: 'bar',
     data: {
       labels: dayLabels.map(d => d.split('-')[2] + '/' + d.split('-')[1]),
-      datasets: [{ label:'Faturamento', data: dayValues, backgroundColor: barColors, borderRadius:4 }]
+      datasets: [
+        { type:'bar', label:'Faturamento', data: dayValues, backgroundColor: barColors, borderRadius:4, yAxisID:'y' },
+        { type:'line', label:'Nº de Vendas', data: dayVendasCount, borderColor:'#3dab7a', backgroundColor:'#3dab7a', borderWidth:2, pointRadius:3, pointHoverRadius:5, tension:0.3, yAxisID:'y1' },
+      ]
     },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:10},color:chartThemeColors().text}}, y:{ticks:{font:{size:10},color:chartThemeColors().text,callback:v=>'R$'+v}} } }
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:true, position:'bottom', labels:{font:{size:10},boxWidth:10,color:chartThemeColors().text} },
+        tooltip:{
+          callbacks:{
+            label: (ctx) => ctx.dataset.label === 'Faturamento' ? `Faturamento: ${BRL_RAW(ctx.raw)}` : `Nº de Vendas: ${ctx.raw}`
+          }
+        }
+      },
+      scales:{
+        x:{ ticks:{font:{size:10},color:chartThemeColors().text}, grid:{display:false} },
+        y:{ position:'left', ticks:{font:{size:10},color:chartThemeColors().text,callback:v=>'R$'+v}, grid:{color:chartThemeColors().grid} },
+        y1:{ position:'right', ticks:{font:{size:10},color:chartThemeColors().text,stepSize:1,precision:0}, grid:{display:false} },
+      }
+    }
   });
 
   const byOrigem = {};
@@ -3378,6 +3426,13 @@ function saveVenda(forcarSalvar=false) {
   if (vendaEditId) { vendas[vendas.findIndex(x=>x.id===vendaEditId)] = v; showToast('Venda atualizada ✓','success'); }
   else { vendas.unshift(v); showToast('Venda salva ✓','success'); }
   save(); saveVendaRemote(v); closeModal('modalVenda'); renderPage(currentPage);
+
+  // Se essa venda veio da confirmação de um lead do formulário externo,
+  // marca o pedido pendente como processado agora que a venda foi criada.
+  if (_pedidoFormAguardandoConfirmacao) {
+    marcarPedidoFormProcessado(_pedidoFormAguardandoConfirmacao, 'confirmado');
+    _pedidoFormAguardandoConfirmacao = null;
+  }
 }
 
 let _vendaPendenteDuplicada = null;
@@ -3961,7 +4016,11 @@ function exportCSV() {
   showToast('CSV exportado ✓','success');
 }
 
-function closeModal(id) { document.getElementById(id).classList.remove('open'); vendaEditId=null; }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  vendaEditId = null;
+  if (id === 'modalVenda') _pedidoFormAguardandoConfirmacao = null;
+}
 
 // ============================================================
 // OCULTAR VALORES
@@ -4220,7 +4279,7 @@ function updateTarefasBadge() {
   const producao = getProducao().filter(v => !isPersonalizado(v)).length;
   const personalizados = getPersonalizadosAlerta().length;
 
-  const totalGeral = pgPendente + aguardando + agendadas + producao + personalizados;
+  const totalGeral = pgPendente + aguardando + agendadas + producao + personalizados + pedidosPendentesForm.length;
 
   const badge = document.getElementById('navAlertCount');
   if (!badge) return;
@@ -4298,6 +4357,74 @@ function cancelarMassa() {
   renderTarefas();
 }
 
+// ============================================================
+// FORMULÁRIO EXTERNO — leads aguardando confirmação/lançamento
+// ============================================================
+// Um lead do formulário NUNCA vira venda sozinho. Ele fica em
+// `pedidos_pendentes` até você clicar "Confirmar e Lançar", que
+// abre o modal de Nova Venda já pré-preenchido — você completa
+// produto e valor, e salva pelo caminho normal (openModalVenda +
+// saveVenda), sem nenhum atalho de escrita paralelo.
+
+let _pedidoFormAguardandoConfirmacao = null;
+
+function confirmarPedidoForm(docId) {
+  const ped = pedidosPendentesForm.find(p => p._docId === docId);
+  if (!ped) return;
+  _pedidoFormAguardandoConfirmacao = docId;
+  openModalVenda({
+    contato: `${ped.nomeComprador || '—'} (${ped.whatsapp || ''})`,
+    fonte: 'catálogo',
+    obs: ped.obs || '',
+  });
+}
+
+async function descartarPedidoForm(docId) {
+  const ped = pedidosPendentesForm.find(p => p._docId === docId);
+  if (!ped) return;
+  if (!confirm(`Descartar o formulário de ${ped.nomeComprador}? Isso não cria nenhuma venda.`)) return;
+  await marcarPedidoFormProcessado(docId, 'descartado');
+  showToast('Formulário descartado', '');
+  renderTarefas();
+}
+
+async function marcarPedidoFormProcessado(docId, status) {
+  if (!db) return;
+  try {
+    await db.collection('pedidos_pendentes').doc(docId).update({ status, processadoEm: new Date().toISOString() });
+  } catch(e) { console.warn('Erro ao atualizar pedido do formulário:', e); }
+  pedidosPendentesForm = pedidosPendentesForm.filter(p => p._docId !== docId);
+}
+
+function abrirDetalhesPedidoForm(docId) {
+  const ped = pedidosPendentesForm.find(p => p._docId === docId);
+  if (!ped) return;
+  const body = document.getElementById('detalhesFormBody');
+  const campos = parseObsFormulario(ped.obs);
+
+  if (!campos) {
+    body.innerHTML = `<p style="font-size:13.5px;color:var(--ink-light);white-space:pre-wrap;">${(ped.obs||'Sem observações.').replace(/</g,'&lt;')}</p>`;
+  } else {
+    body.innerHTML = Object.entries(campos).map(([chave, valor]) => {
+      const url = extrairURL(valor);
+      const valorLimpo = url ? removerURL(valor) : valor;
+      let valorHtml = valorLimpo.replace(/</g,'&lt;');
+      if (url) valorHtml += ` <a href="${url}" target="_blank" style="color:var(--blue);font-weight:600;">🗺️ Ver no mapa</a>`;
+      if (/whats|telefone|celular|contato/i.test(chave) && /\d{8,}/.test(valor)) {
+        valorHtml += ` <a href="${linkWhatsApp(valor)}" target="_blank" style="color:var(--green);font-weight:600;">💬 Abrir WhatsApp</a>`;
+      }
+      return `<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+        <div style="font-size:11px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.5px;">${chave.replace(/</g,'&lt;')}</div>
+        <div style="font-size:14px;color:var(--ink);margin-top:2px;">${valorHtml}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const btnConfirmacao = document.getElementById('btnIrParaConfirmacao');
+  if (btnConfirmacao) btnConfirmacao.style.display = 'none';
+  document.getElementById('modalDetalhesForm').classList.add('open');
+}
+
 function renderTarefas() {
   const vendasPendentes = getPendentes(); // aguardando + pg-pendente (atrasados)
   const fluxoLista = getPendentesFluxo();
@@ -4340,7 +4467,7 @@ function renderTarefas() {
       </div>`;
   }
 
-  if (totalGeral === 0) {
+  if (totalGeral === 0 && pedidosPendentesForm.length === 0) {
     document.getElementById('tarefasList').innerHTML = htmlBackup + `
       <div class="tarefas-empty">
         <div class="big-icon">🎉</div>
@@ -4350,8 +4477,37 @@ function renderTarefas() {
     return;
   }
 
+  // Leads vindos do formulário externo, aguardando confirmação/lançamento manual
+  let htmlPedidosForm = '';
+  if (pedidosPendentesForm.length > 0 && (tarefaFiltroAtivo === 'all')) {
+    htmlPedidosForm = pedidosPendentesForm.map(ped => {
+      const dataFmt = (ped.criadoEm || '').split('T')[0]?.split('-').reverse().join('/') || '';
+      return `
+      <div class="tarefa-card card-pedido-site" style="margin-bottom:14px;">
+        <div class="tarefa-dias-badge">
+          <div class="tarefa-dias-num">🆕</div>
+          <div class="tarefa-dias-label" style="font-size:7px;">FORM</div>
+        </div>
+        <div class="tarefa-info">
+          <div class="tarefa-contato">
+            <span class="badge-pedido-site">Formulário Recebido</span>
+            ${ped.nomeComprador || '—'} ${ped.whatsapp ? `<button class="btn-copy-tel" onclick="event.stopPropagation();copiarTelefone('${ped.whatsapp.replace(/'/g,"\\'")}')" title="Copiar número">📋</button><a href="${linkWhatsApp(ped.whatsapp)}" target="_blank" class="btn-copy-tel" onclick="event.stopPropagation()" title="Abrir WhatsApp">💬</a>` : ''}
+          </div>
+          <div class="tarefa-meta">
+            <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 ${dataFmt}</span>
+            ${ped.obs ? `<span class="tarefa-chip chip-form-detalhes" onclick="event.stopPropagation();abrirDetalhesPedidoForm('${ped._docId}')" title="Ver detalhes">📋 Ver detalhes</span>` : ''}
+          </div>
+        </div>
+        <div class="tarefa-actions">
+          <button class="btn btn-primary btn-sm" onclick="confirmarPedidoForm('${ped._docId}')" style="background:var(--green);">✓ Confirmar e Lançar</button>
+          <button class="btn btn-ghost btn-sm" onclick="descartarPedidoForm('${ped._docId}')">Descartar</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   const f = tarefaFiltroAtivo;
-  let html = htmlBackup;
+  let html = htmlBackup + htmlPedidosForm;
 
   const opts = STATUS_OPTS.map(o=>`<option value="${o.v}">${o.l}</option>`).join('');
 
