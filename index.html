@@ -3425,13 +3425,17 @@ function saveVenda(forcarSalvar=false) {
 
   if (vendaEditId) { vendas[vendas.findIndex(x=>x.id===vendaEditId)] = v; showToast('Venda atualizada ✓','success'); }
   else { vendas.unshift(v); showToast('Venda salva ✓','success'); }
-  save(); saveVendaRemote(v); closeModal('modalVenda'); renderPage(currentPage);
+  save(); saveVendaRemote(v);
+
+  // Captura ANTES de fechar o modal — closeModal('modalVenda') zera essa variável
+  const pedidoFormPendente = _pedidoFormAguardandoConfirmacao;
+  closeModal('modalVenda');
+  renderPage(currentPage);
 
   // Se essa venda veio da confirmação de um lead do formulário externo,
   // marca o pedido pendente como processado agora que a venda foi criada.
-  if (_pedidoFormAguardandoConfirmacao) {
-    marcarPedidoFormProcessado(_pedidoFormAguardandoConfirmacao, 'confirmado');
-    _pedidoFormAguardandoConfirmacao = null;
+  if (pedidoFormPendente) {
+    marcarPedidoFormProcessado(pedidoFormPendente, 'confirmado');
   }
 }
 
