@@ -792,12 +792,7 @@
       <span class="filter-chip" data-val="cancelado" onclick="setFilter(this)">❌ Cancelado</span>
     </div>
     <div class="card">
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Status</th><th>Contato</th><th>Data</th><th>Produto</th><th>Fonte</th><th>Valor</th><th>Sinal</th><th>Pago</th><th></th></tr></thead>
-          <tbody id="vendasBody"></tbody>
-        </table>
-      </div>
+      <div id="vendasCardsContainer" style="padding:16px 22px;"></div>
       <div style="padding:16px 22px;border-top:1px solid var(--border)">
         <div class="pagination" id="pagination"></div>
       </div>
@@ -2787,22 +2782,79 @@ function renderDashboardAnual() {
   }
 }
 
-function rowHtml(v) {
+/** Card de venda no mesmo estilo visual usado em Tarefas do Dia, adaptado para a lista geral de Vendas */
+function cardVendaLista(v) {
+  const hoje = today();
+  const diasAtraso = Math.floor((new Date(hoje) - new Date(v.data)) / 86400000);
+  const isPers = isPersonalizado(v);
   const restante = (parseFloat(v.valorProd)||0) - (parseFloat(v.valorPago)||0);
-  return `<tr>
-    <td>${statusSelectHtml(v.id, v.status)}</td>
-    <td style="font-weight:500">${v.contato||'—'}</td>
-    <td style="color:var(--ink-muted)">${v.data||'—'}</td>
-    <td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${v.produto||''}">${v.produto||'—'}</td>
-    <td><span class="fonte-badge fonte-${fonteClass(v.fonte)}">${v.fonte||'—'}</span></td>
-    <td style="font-weight:600">${BRL(v.valorProd)}</td>
-    <td style="color:var(--green)">${BRL(v.sinal)}</td>
-    <td style="color:${restante>0.01?'var(--amber)':'var(--ink-muted)'}">${BRL(v.valorPago)}</td>
-    <td style="white-space:nowrap">
-      <button class="btn btn-ghost btn-sm" onclick="editVenda('${v.id}')">✏️</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteVenda('${v.id}')">🗑</button>
-    </td>
-  </tr>`;
+  const optsStatus = STATUS_OPTS.map(o=>`<option value="${o.v}" ${o.v===v.status?'selected':''}>${o.l}</option>`).join('');
+
+  let cardClass = '', badgeClass = '';
+  if (statusClass(v.status) === 'finalizado') { cardClass = ''; badgeClass = ''; }
+  else if (statusClass(v.status) === 'cancelado') { cardClass = ''; badgeClass = ''; }
+  else if (isPers) {
+    const prazo = infoPrazoPersonalizado(v);
+    cardClass = prazo.urgente ? 'personalizado-urgente' : 'personalizado';
+    badgeClass = cardClass;
+  } else {
+    cardClass = diasAtraso >= 2 ? 'urgente' : 'hoje';
+    badgeClass = cardClass;
+  }
+
+  const persTag = isPers ? `<span class="badge-personalizado">✏️ Personalizado</span>` : '';
+
+  let prazoTag = '';
+  if (isPers && statusClass(v.status) !== 'finalizado' && statusClass(v.status) !== 'cancelado') {
+    const prazo = infoPrazoPersonalizado(v);
+    prazoTag = `<span class="tarefa-chip ${prazo.classe}">⏱ Prazo: ${prazo.label}</span>`;
+  }
+
+  let diasBadgeContent = '';
+  if (!isPers) {
+    diasBadgeContent = `<div class="tarefa-dias-num">${diasAtraso}</div><div class="tarefa-dias-label">${diasAtraso===1?'dia':'dias'}</div>`;
+  } else {
+    const diasUteis = calcDiasUteisDesde(v.data);
+    diasBadgeContent = `<div class="tarefa-dias-num">${diasUteis}</div><div class="tarefa-dias-label">d.úteis</div>`;
+  }
+
+  const camposForm = parseObsFormulario(v.obs);
+  let formChip = '';
+  if (camposForm) {
+    const nomeAniv = buscarCampo(camposForm, 'nome');
+    const dataAniv = buscarCampo(camposForm, 'data');
+    const resumoForm = [nomeAniv, dataAniv].filter(Boolean).join(' · ');
+    formChip = `<span class="tarefa-chip chip-form-detalhes" onclick="event.stopPropagation();abrirDetalhesFormulario('${v.id}')" title="Ver detalhes do pedido">
+      🎉 ${resumoForm || 'Detalhes do pedido'} · 📋 Ver detalhes
+    </span>`;
+  }
+
+  return `
+    <div class="tarefa-card ${cardClass}" data-venda-id="${v.id}">
+      <div class="tarefa-dias-badge ${badgeClass}">
+        ${diasBadgeContent}
+      </div>
+      <div class="tarefa-info">
+        <div class="tarefa-contato">🛍️ ${v.contato||'—'} ${v.contato ? `<button class="btn-copy-tel" onclick="event.stopPropagation();copiarTelefone('${v.contato.replace(/'/g,"\\'")}')" title="Copiar número">📋</button><a href="${linkWhatsApp(v.contato)}" target="_blank" class="btn-copy-tel" onclick="event.stopPropagation()" title="Abrir WhatsApp">💬</a>` : ''} ${persTag}</div>
+        <div class="tarefa-produto">${v.produto||'—'}</div>
+        <div class="tarefa-meta">
+          <span class="tarefa-chip fonte-badge fonte-${fonteClass(v.fonte)}">${v.fonte||'—'}</span>
+          <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">📅 ${(v.data||'').split('-').reverse().join('/')}</span>
+          <span class="tarefa-chip" style="background:var(--warm);color:var(--ink-light)">💰 ${BRL(v.valorProd)}</span>
+          <span class="tarefa-chip" style="background:var(--green-light,#d4f0e4);color:var(--green)">Sinal ${BRL(v.sinal)}</span>
+          ${restante > 0.01 ? `<span class="tarefa-chip" style="background:#fdeaea;color:var(--red)">Falta ${BRL(restante)}</span>` : ''}
+          ${prazoTag}
+          ${formChip}
+        </div>
+      </div>
+      <div class="tarefa-actions">
+        <select class="status-select s-${statusClass(v.status)}" onchange="quickStatusTarefa('${v.id}',this)">
+          ${optsStatus}
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="editVenda('${v.id}')" title="Editar pedido">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteVenda('${v.id}')" title="Excluir">🗑</button>
+      </div>
+    </div>`;
 }
 
 function renderVendas() {
@@ -2821,9 +2873,9 @@ function renderVendas() {
   currentPageV = Math.min(currentPageV, pages);
   const slice = list.slice((currentPageV-1)*PER_PAGE, currentPageV*PER_PAGE);
 
-  document.getElementById('vendasBody').innerHTML = slice.length
-    ? slice.map(rowHtml).join('')
-    : '<tr><td colspan="9" style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma venda encontrada</td></tr>';
+  document.getElementById('vendasCardsContainer').innerHTML = slice.length
+    ? slice.map(cardVendaLista).join('')
+    : '<p style="text-align:center;color:var(--ink-muted);padding:32px">Nenhuma venda encontrada</p>';
 
   const pg = document.getElementById('pagination');
   if (pages <= 1) { pg.innerHTML = `<span class="page-info">${total} registro(s)</span>`; return; }
@@ -4702,7 +4754,7 @@ function renderTarefas() {
 
 function quickStatusTarefa(id, sel) {
   quickStatus(id, sel);
-  setTimeout(() => renderTarefas(), 100);
+  setTimeout(() => renderPage(currentPage), 100);
 }
 
 
