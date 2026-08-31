@@ -1740,6 +1740,7 @@ function parseObsFormulario(obs) {
   if (!obs) return null;
   const linhas = obs.split('\n').map(l => l.trim()).filter(Boolean);
   const campos = {};
+  let ultimaChave = null;
   let encontrouAlgum = false;
 
   linhas.forEach(linha => {
@@ -1749,7 +1750,12 @@ function parseObsFormulario(obs) {
       const chave = m[1].trim();
       const valor = m[2].trim();
       campos[chave] = valor;
+      ultimaChave = chave;
       encontrouAlgum = true;
+    } else if (ultimaChave) {
+      // Linha sem marcador — é continuação do valor do campo anterior
+      // (ex: várias linhas dentro de "Sugestões de Presentes"), não descarta.
+      campos[ultimaChave] += '\n' + linha;
     }
   });
 
@@ -1802,7 +1808,7 @@ function abrirDetalhesFormulario(vendaId) {
   const linhas = Object.entries(campos).map(([chave, valor]) => {
     const url = extrairURL(valor);
     const valorLimpo = url ? removerURL(valor) : valor;
-    let valorHtml = valorLimpo.replace(/</g,'&lt;');
+    let valorHtml = valorLimpo.replace(/</g,'&lt;').replace(/\n/g, '<br>');
 
     if (url) {
       valorHtml += ` <a href="${url}" target="_blank" style="color:var(--blue);font-weight:600;">🗺️ Ver no mapa</a>`;
@@ -4464,7 +4470,7 @@ function abrirDetalhesPedidoForm(docId) {
     body.innerHTML = Object.entries(campos).map(([chave, valor]) => {
       const url = extrairURL(valor);
       const valorLimpo = url ? removerURL(valor) : valor;
-      let valorHtml = valorLimpo.replace(/</g,'&lt;');
+      let valorHtml = valorLimpo.replace(/</g,'&lt;').replace(/\n/g, '<br>');
       if (url) valorHtml += ` <a href="${url}" target="_blank" style="color:var(--blue);font-weight:600;">🗺️ Ver no mapa</a>`;
       if (/whats|telefone|celular|contato/i.test(chave) && /\d{8,}/.test(valor)) {
         valorHtml += ` <a href="${linkWhatsApp(valor)}" target="_blank" style="color:var(--green);font-weight:600;">💬 Abrir WhatsApp</a>`;
