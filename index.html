@@ -17,6 +17,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
 <style>
   :root {
@@ -627,8 +628,9 @@
     <h1 style="font-family:'DM Serif Display',serif;font-size:32px;color:var(--rose);margin-bottom:4px">Luluzices</h1>
     <p style="font-size:13px;color:var(--ink-muted);margin-bottom:24px">Acesso restrito à gestão</p>
     
-    <input type="password" id="passInput" placeholder="Digite a senha..." style="width:100%;margin-bottom:16px;text-align:center;font-size:16px;padding:12px;border-radius:12px">
-    
+    <input type="email" id="loginEmailInput" placeholder="E-mail" style="width:100%;margin-bottom:12px;text-align:center;font-size:15px;padding:12px;border-radius:12px" onkeydown="if(event.key==='Enter')document.getElementById('passInput').focus()">
+    <input type="password" id="passInput" placeholder="Digite a senha..." style="width:100%;margin-bottom:16px;text-align:center;font-size:16px;padding:12px;border-radius:12px" onkeydown="if(event.key==='Enter')checkLogin()">
+    <p id="loginErro" style="display:none;color:#e84040;font-size:12.5px;margin-bottom:12px;">E-mail ou senha incorretos.</p>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;font-size:15px;border-radius:12px" onclick="checkLogin()">Entrar</button>
   </div>
 </div>
@@ -1405,7 +1407,6 @@ async function saveMetasRemote() {
 async function loadFromFirebase() {
   if (!firebaseConfigured) return;
   try {
-    firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     setStatus('Conectando ao Firebase...');
 
@@ -4791,15 +4792,23 @@ async function init() {
 // ============================================================
 // CONTROLE DE ACESSO (LOGIN)
 // ============================================================
-const SENHA_ACESSO = "luluzices2026"; 
+// Login real via Firebase Auth — necessário porque as regras do Firestore
+// exigem "request.auth != null" para qualquer escrita (vendas, fluxo, etc).
+// A senha nunca fica no código: é verificada pelo próprio Firebase.
 
-function checkLogin() {
-  const input = document.getElementById('passInput').value;
-  if (input === SENHA_ACESSO) {
-    LS.set('logado', true); 
+async function checkLogin() {
+  const email = document.getElementById('loginEmailInput').value.trim();
+  const senha = document.getElementById('passInput').value;
+  const btnErro = document.getElementById('loginErro');
+  if (btnErro) btnErro.style.display = 'none';
+
+  try {
+    await firebase.auth().signInWithEmailAndPassword(email, senha);
+    LS.set('logado', true);
     liberarAcesso();
-  } else {
-    showToast('Senha incorreta 🔒', 'error');
+  } catch (e) {
+    showToast('E-mail ou senha incorretos 🔒', 'error');
+    if (btnErro) { btnErro.textContent = 'E-mail ou senha incorretos.'; btnErro.style.display = 'block'; }
     document.getElementById('passInput').value = '';
     document.getElementById('passInput').focus();
   }
@@ -4841,13 +4850,21 @@ if (_temaDarkInicial) document.body.classList.add('dark');
   if (corFundoSalva && !_temaDarkInicial) aplicarCorFundo(corFundoSalva, false);
 }
 
-if (LS.get('logado', false)) {
-  liberarAcesso();
-} else {
-  document.getElementById('passInput').addEventListener('keypress', function (e) {
-    if (e.key === 'Enter') checkLogin();
-  });
-}
+firebase.initializeApp(firebaseConfig);
+
+// Usa a persistência de sessão do próprio Firebase Auth — se o usuário já
+// tiver feito login antes (e a sessão não tiver expirado), pula a tela de
+// senha automaticamente. Isso evita destravar a interface sem autenticação
+// de verdade por trás (o que quebraria toda escrita no Firestore).
+firebase.auth().onAuthStateChanged(user => {
+  if (user) {
+    liberarAcesso();
+  } else {
+    document.getElementById('passInput').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') checkLogin();
+    });
+  }
+});
 </script>
 </body>
 </html>
