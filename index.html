@@ -780,7 +780,10 @@
   <div class="page" id="page-vendas">
     <div class="search-bar">
       <input type="date" id="filterDataVendas" onchange="renderVendas()" style="padding:9px; border:1.5px solid var(--border); border-radius:var(--radius-sm); outline:none; font-family:'DM Sans',sans-serif; color:var(--ink-light);">
-      
+      <select id="ordenarVendas" onchange="renderVendas()" style="padding:9px; border:1.5px solid var(--border); border-radius:var(--radius-sm); outline:none; font-family:'DM Sans',sans-serif; color:var(--ink-light);">
+        <option value="data-desc">Mais recentes primeiro</option>
+        <option value="data-asc">Mais antigas primeiro</option>
+      </select>
       <input class="search-input" type="text" id="searchVendas" placeholder="🔍  Buscar por contato, produto, fonte..." oninput="renderVendas()">
       <button class="btn btn-primary" onclick="openModalVenda()">+ Nova Venda</button>
     </div>
@@ -2867,13 +2870,17 @@ function cardVendaLista(v) {
 function renderVendas() {
   const q = (document.getElementById('searchVendas')?.value||'').toLowerCase();
   const dateFilter = document.getElementById('filterDataVendas')?.value;
+  const ordem = document.getElementById('ordenarVendas')?.value || 'data-desc';
 
   let list = vendas.filter(v => {
     if (activeStatuses.size > 0 && !activeStatuses.has(statusClass(v.status))) return false;
     if (dateFilter && v.data !== dateFilter) return false;
     if (q) { const h=[v.contato,v.produto,v.fonte,v.obs].join(' ').toLowerCase(); if (!h.includes(q)) return false; }
     return true;
-  }).sort((a,b)=>(b.data||'')>(a.data||'')?1:-1);
+  }).sort((a,b) => ordem === 'data-asc'
+    ? ((a.data||'') > (b.data||'') ? 1 : -1)
+    : ((b.data||'') > (a.data||'') ? 1 : -1)
+  );
 
   const total = list.length;
   const pages = Math.ceil(total/PER_PAGE)||1;
@@ -4685,10 +4692,20 @@ function renderTarefas() {
   if (temAguardando) {
     html += `<div class="tarefa-section-title">⏳ Aguardando</div>`;
     aguardandoNormais.forEach(v => { html += cardVenda(v, 'producao'); });
-    // Personalizados urgentes aparecem junto com aguardando
+    // Personalizados urgentes aparecem junto com aguardando (só quando essa seção está visível)
     if (persUrgentes.length > 0) {
       persUrgentes.forEach(v => { html += cardVenda(v, 'personalizados'); });
     }
+  }
+
+  // Na aba "Personalizados", os urgentes precisam aparecer mesmo sem a seção
+  // "Aguardando" estar visível — antes ficavam escondidos e a aba parecia vazia.
+  if (f === 'personalizados' && persUrgentes.length > 0) {
+    html += `
+      <div class="tarefa-section-title" style="color:var(--red); margin-top:8px;">
+        ⚠️ Pedidos Personalizados — Prazo Urgente
+      </div>`;
+    persUrgentes.forEach(v => { html += cardVenda(v, 'personalizados'); });
   }
 
   // ---- 3. PERSONALIZADOS com prazo ok (não urgentes) ----
