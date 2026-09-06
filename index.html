@@ -1108,6 +1108,31 @@
         <p style="font-size:11.5px;color:var(--ink-muted);margin-top:10px;">💡 O prazo aparece nas Tarefas do Dia e gera alertas de urgência automaticamente.</p>
       </div>
     </div>
+
+    <div class="grid-2" style="margin-top:20px;">
+      <div class="card">
+        <div class="card-header"><span class="card-title">📢 Conjuntos de Anúncios</span></div>
+        <div class="card-body">
+          <p style="font-size:12.5px;color:var(--ink-muted);margin-bottom:14px;">Opções mostradas no lançamento de venda quando a fonte é "Tráfego Pago".</p>
+          <div id="listaConjuntos" style="margin-bottom:12px;"></div>
+          <div class="form-row" style="display:flex;gap:8px;">
+            <input type="text" id="novoConjuntoInput" placeholder="Ex: LAL Compradores Julho" style="flex:1;" onkeydown="if(event.key==='Enter')adicionarConjunto()">
+            <button class="btn btn-primary btn-sm" onclick="adicionarConjunto()">+ Adicionar</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">🔗 Origem dos Leads</span></div>
+        <div class="card-body">
+          <p style="font-size:12.5px;color:var(--ink-muted);margin-bottom:14px;">Opções sugeridas no campo "Fonte" ao lançar uma venda.</p>
+          <div id="listaFontes" style="margin-bottom:12px;"></div>
+          <div class="form-row" style="display:flex;gap:8px;">
+            <input type="text" id="novaFonteInput" placeholder="Ex: Parceria" style="flex:1;" onkeydown="if(event.key==='Enter')adicionarFonte()">
+            <button class="btn btn-primary btn-sm" onclick="adicionarFonte()">+ Adicionar</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -3286,9 +3311,98 @@ function onProdutoKeydown(e) {
 // ============================================================
 // AUTOCOMPLETE DE FONTE DO LEAD
 // ============================================================
-const CATALOGO_FONTES = [
-  'Tráfego Pago', 'Orgânico', 'Retorno', 'Catálogo', 'Recorrente', 'Indicação',
-];
+let CATALOGO_FONTES = LS.get('catalogoFontes', ['Tráfego Pago', 'Orgânico', 'Retorno', 'Catálogo', 'Recorrente', 'Indicação']);
+let catalogoConjuntos = LS.get('catalogoConjuntos', ['LAL (Clientes de Março)', 'Público Validado', 'Remarketing']);
+
+async function loadListasConfigRemote() {
+  if (!db) return;
+  try {
+    const [fontesSnap, conjuntosSnap] = await Promise.all([
+      db.collection('config').doc('catalogoFontes').get(),
+      db.collection('config').doc('catalogoConjuntos').get(),
+    ]);
+    if (fontesSnap.exists) { CATALOGO_FONTES = JSON.parse(fontesSnap.data().data || '[]'); LS.set('catalogoFontes', CATALOGO_FONTES); }
+    if (conjuntosSnap.exists) { catalogoConjuntos = JSON.parse(conjuntosSnap.data().data || '[]'); LS.set('catalogoConjuntos', catalogoConjuntos); }
+  } catch(e) { console.warn('Erro ao carregar listas de configuração:', e); }
+}
+async function saveFontesRemote() {
+  LS.set('catalogoFontes', CATALOGO_FONTES);
+  if (!db) return;
+  try { await db.collection('config').doc('catalogoFontes').set({ data: JSON.stringify(CATALOGO_FONTES) }); } catch(e) {}
+}
+async function saveConjuntosRemote() {
+  LS.set('catalogoConjuntos', catalogoConjuntos);
+  if (!db) return;
+  try { await db.collection('config').doc('catalogoConjuntos').set({ data: JSON.stringify(catalogoConjuntos) }); } catch(e) {}
+}
+
+function renderListaConjuntos() {
+  const el = document.getElementById('listaConjuntos');
+  if (!el) return;
+  el.innerHTML = catalogoConjuntos.length ? catalogoConjuntos.map((c, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--cream);border-radius:var(--radius-sm);margin-bottom:6px;">
+      <span style="font-size:13px;">${c}</span>
+      <button class="btn btn-ghost btn-sm" onclick="removerConjunto(${i})" style="color:var(--red);padding:2px 8px;">✕</button>
+    </div>`).join('') : '<p style="font-size:12px;color:var(--ink-muted);">Nenhum conjunto cadastrado.</p>';
+}
+function renderListaFontes() {
+  const el = document.getElementById('listaFontes');
+  if (!el) return;
+  el.innerHTML = CATALOGO_FONTES.length ? CATALOGO_FONTES.map((f, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--cream);border-radius:var(--radius-sm);margin-bottom:6px;">
+      <span style="font-size:13px;">${f}</span>
+      <button class="btn btn-ghost btn-sm" onclick="removerFonte(${i})" style="color:var(--red);padding:2px 8px;">✕</button>
+    </div>`).join('') : '<p style="font-size:12px;color:var(--ink-muted);">Nenhuma fonte cadastrada.</p>';
+}
+
+async function adicionarConjunto() {
+  const input = document.getElementById('novoConjuntoInput');
+  const valor = input.value.trim();
+  if (!valor) return;
+  if (catalogoConjuntos.includes(valor)) { showToast('Esse conjunto já existe', 'error'); return; }
+  catalogoConjuntos.push(valor);
+  await saveConjuntosRemote();
+  renderListaConjuntos();
+  atualizarOpcoesConjuntoModal();
+  input.value = '';
+  showToast('Conjunto adicionado ✓', 'success');
+}
+async function removerConjunto(idx) {
+  if (!confirm(`Remover "${catalogoConjuntos[idx]}"?`)) return;
+  catalogoConjuntos.splice(idx, 1);
+  await saveConjuntosRemote();
+  renderListaConjuntos();
+  atualizarOpcoesConjuntoModal();
+  showToast('Conjunto removido', 'error');
+}
+async function adicionarFonte() {
+  const input = document.getElementById('novaFonteInput');
+  const valor = input.value.trim();
+  if (!valor) return;
+  if (CATALOGO_FONTES.includes(valor)) { showToast('Essa fonte já existe', 'error'); return; }
+  CATALOGO_FONTES.push(valor);
+  await saveFontesRemote();
+  renderListaFontes();
+  input.value = '';
+  showToast('Fonte adicionada ✓', 'success');
+}
+async function removerFonte(idx) {
+  if (!confirm(`Remover "${CATALOGO_FONTES[idx]}"?`)) return;
+  CATALOGO_FONTES.splice(idx, 1);
+  await saveFontesRemote();
+  renderListaFontes();
+  showToast('Fonte removida', 'error');
+}
+
+/** Reconstrói os radio buttons de Conjunto de Origem no modal de venda, a partir da lista editável */
+function atualizarOpcoesConjuntoModal() {
+  const container = document.querySelector('#rowConjuntoOrigem .checkbox-group');
+  if (!container) return;
+  const valorSelecionado = document.querySelector('input[name="vConjunto"]:checked')?.value;
+  container.innerHTML = catalogoConjuntos.map(c =>
+    `<label class="checkbox-pill"><input type="radio" name="vConjunto" value="${c}" ${c===valorSelecionado?'checked':''}> ${c}</label>`
+  ).join('');
+}
 
 /** Mostra o bloco de Conjunto de Origem só quando a Fonte for tráfego pago */
 function onFonteChangeCheckConjunto() {
@@ -4442,10 +4556,13 @@ function confirmarPedidoForm(docId) {
   const ped = pedidosPendentesForm.find(p => p._docId === docId);
   if (!ped) return;
   _pedidoFormAguardandoConfirmacao = docId;
+  // Usa a data em que o cliente preencheu o formulário, não a data de hoje
+  const dataFormulario = ped.criadoEm ? ped.criadoEm.split('T')[0] : today();
   openModalVenda({
     contato: `${ped.nomeComprador || '—'} (${ped.whatsapp || ''})`,
     fonte: 'catálogo',
     obs: ped.obs || '',
+    data: dataFormulario,
   });
 }
 
