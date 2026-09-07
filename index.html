@@ -1449,6 +1449,7 @@ async function loadFromFirebase() {
     if (metasSnap.exists) { metas = JSON.parse(metasSnap.data().data||'{}'); LS.set('metas',metas); }
 
     await loadProdutosRemote();
+    await loadListasConfigRemote();
 
     db.collection('vendas').onSnapshot(snap => {
       snap.docChanges().forEach(ch => {
@@ -2136,7 +2137,17 @@ function infoPrazoPersonalizado(v) {
   const isPers = isPersonalizado(v);
   const diasPadrao = isPers ? cfg.personalizado : cfg.normal;
 
-  const dataLimite = v.prazo || calcDataPrazo(v.data, diasPadrao);
+  // Enquanto o pedido ainda está aguardando informação do cliente, o prazo de
+  // entrega não começou a correr — evita alerta de urgência falso nesse período.
+  if (v.status === 'aguardando-info' && !v.prazo) {
+    return { label: 'Aguardando informações', classe: 'badge-prazo-ok', urgente: false };
+  }
+
+  // O prazo conta a partir do momento em que o pedido ENTROU em "aguardando".
+  // Pedidos antigos (de antes dessa mudança) não têm esse campo — nesse caso,
+  // cai de volta em v.data como já funcionava, sem quebrar nada existente.
+  const dataBase = v.dataAguardando || v.data;
+  const dataLimite = v.prazo || calcDataPrazo(dataBase, diasPadrao);
   if (!dataLimite) return { label: '—', classe: '', urgente: false };
 
   const hoje = new Date(today() + 'T12:00:00');
@@ -2521,8 +2532,16 @@ function quickStatus(id, sel) {
   const v = vendas.find(x=>x.id===id);
   if (!v) return;
   const eraFinalizado = v.status === 'finalizado';
-  const snapshot = { status: v.status, valorPago: v.valorPago, dataFinalizacao: v.dataFinalizacao };
+  const statusAnterior = v.status;
+  const snapshot = { status: v.status, valorPago: v.valorPago, dataFinalizacao: v.dataFinalizacao, dataAguardando: v.dataAguardando };
   v.status = sel.value;
+
+  // O prazo de entrega só começa a contar quando o pedido ENTRA em "aguardando"
+  // (ex: saindo de "aguardando-info" depois que o cliente manda os dados).
+  // Grava a data só na transição — não sobrescreve se já estava aguardando antes.
+  if (v.status === 'aguardando' && statusAnterior !== 'aguardando') {
+    v.dataAguardando = today();
+  }
 
   // Ao marcar como Enviado: se já pagou tudo, finaliza automaticamente
   if (v.status === 'enviado') {
@@ -2547,6 +2566,7 @@ function quickStatus(id, sel) {
       v.status = snapshot.status;
       v.valorPago = snapshot.valorPago;
       v.dataFinalizacao = snapshot.dataFinalizacao;
+      v.dataAguardando = snapshot.dataAguardando;
     },
     remoteUndo: () => saveVendaRemote(v),
   });
@@ -2966,7 +2986,7 @@ function openModalVenda(v=null) {
   // Meio de pagamento, avaliação, conjunto de origem, nº de contatos
   document.querySelectorAll('input[name="vPagamento"]').forEach(r => r.checked = (r.value === v?.pagamento));
   document.querySelectorAll('input[name="vAvaliacao"]').forEach(r => r.checked = (r.value === v?.avaliacao));
-  document.querySelectorAll('input[name="vConjunto"]').forEach(r => r.checked = (r.value === v?.conjuntoOrigem));
+  atualizarOpcoesConjuntoModal(v?.conjuntoOrigem);
   document.getElementById('vNumContatos').value = v?.numContatos ?? '';
   onFonteChangeCheckConjunto();
 
@@ -3395,10 +3415,12 @@ async function removerFonte(idx) {
 }
 
 /** Reconstrói os radio buttons de Conjunto de Origem no modal de venda, a partir da lista editável */
-function atualizarOpcoesConjuntoModal() {
+function atualizarOpcoesConjuntoModal(valorParaMarcar) {
   const container = document.querySelector('#rowConjuntoOrigem .checkbox-group');
   if (!container) return;
-  const valorSelecionado = document.querySelector('input[name="vConjunto"]:checked')?.value;
+  const valorSelecionado = valorParaMarcar !== undefined
+    ? valorParaMarcar
+    : document.querySelector('input[name="vConjunto"]:checked')?.value;
   container.innerHTML = catalogoConjuntos.map(c =>
     `<label class="checkbox-pill"><input type="radio" name="vConjunto" value="${c}" ${c===valorSelecionado?'checked':''}> ${c}</label>`
   ).join('');
@@ -3579,6 +3601,14 @@ function saveVenda(forcarSalvar=false) {
     ? (existing?.dataFinalizacao || today())
     : null;
 
+  // O prazo de entrega só começa a contar quando o pedido ENTRA em "aguardando" —
+  // preserva a data já registrada, ou grava agora se é a primeira vez que entra nesse status.
+  const statusAnteriorSalvo = existing?.status;
+  let dataAguardando = existing?.dataAguardando || null;
+  if (statusFinal === 'aguardando' && statusAnteriorSalvo !== 'aguardando') {
+    dataAguardando = today();
+  }
+
   const v = {
     id: vendaEditId || Date.now().toString(), status: statusFinal, data: document.getElementById('vData').value,
     contato: document.getElementById('vContato').value.trim(), fonte: document.getElementById('vFonte').value,
@@ -3590,6 +3620,7 @@ function saveVenda(forcarSalvar=false) {
     conjuntoOrigem: document.querySelector('input[name="vConjunto"]:checked')?.value || null,
     numContatos: document.getElementById('vNumContatos').value ? parseInt(document.getElementById('vNumContatos').value) : null,
     ...(dataFinalizacao ? { dataFinalizacao } : {}),
+    ...(dataAguardando ? { dataAguardando } : {}),
   };
   if (!v.contato) { showToast('Preencha o contato','error'); return; }
   if (!v.data) { showToast('Preencha a data','error'); return; }
@@ -3902,6 +3933,8 @@ function calcMetasAutomaticas() {
 // METAS E CONFIG
 // ============================================================
 function renderMetas() {
+  renderListaConjuntos();
+  renderListaFontes();
   const { mes, ano } = getMesAno();
   document.getElementById('metaMes').value = mes;
   document.getElementById('metaAno').value = ano;
