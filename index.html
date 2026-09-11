@@ -3601,12 +3601,15 @@ function saveVenda(forcarSalvar=false) {
     ? (existing?.dataFinalizacao || today())
     : null;
 
-  // O prazo de entrega só começa a contar quando o pedido ENTRA em "aguardando" —
-  // preserva a data já registrada, ou grava agora se é a primeira vez que entra nesse status.
+  // O prazo de entrega só começa a contar quando o pedido ENTRA em "aguardando".
+  // Numa venda NOVA já lançada como "aguardando", isso significa a data do próprio
+  // pedido (o campo Data escolhido) — não o dia de hoje, que criaria um prazo
+  // artificialmente adiado se o pedido for lançado com data retroativa (ex: ontem).
+  // Numa venda EXISTENTE que está de fato mudando de status agora, aí sim vale hoje.
   const statusAnteriorSalvo = existing?.status;
   let dataAguardando = existing?.dataAguardando || null;
   if (statusFinal === 'aguardando' && statusAnteriorSalvo !== 'aguardando') {
-    dataAguardando = today();
+    dataAguardando = existing ? today() : document.getElementById('vData').value;
   }
 
   const v = {
