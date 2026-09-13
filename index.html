@@ -2137,17 +2137,7 @@ function infoPrazoPersonalizado(v) {
   const isPers = isPersonalizado(v);
   const diasPadrao = isPers ? cfg.personalizado : cfg.normal;
 
-  // Enquanto o pedido ainda está aguardando informação do cliente, o prazo de
-  // entrega não começou a correr — evita alerta de urgência falso nesse período.
-  if (v.status === 'aguardando-info' && !v.prazo) {
-    return { label: 'Aguardando informações', classe: 'badge-prazo-ok', urgente: false };
-  }
-
-  // O prazo conta a partir do momento em que o pedido ENTROU em "aguardando".
-  // Pedidos antigos (de antes dessa mudança) não têm esse campo — nesse caso,
-  // cai de volta em v.data como já funcionava, sem quebrar nada existente.
-  const dataBase = v.dataAguardando || v.data;
-  const dataLimite = v.prazo || calcDataPrazo(dataBase, diasPadrao);
+  const dataLimite = v.prazo || calcDataPrazo(v.data, diasPadrao);
   if (!dataLimite) return { label: '—', classe: '', urgente: false };
 
   const hoje = new Date(today() + 'T12:00:00');
@@ -2532,16 +2522,8 @@ function quickStatus(id, sel) {
   const v = vendas.find(x=>x.id===id);
   if (!v) return;
   const eraFinalizado = v.status === 'finalizado';
-  const statusAnterior = v.status;
-  const snapshot = { status: v.status, valorPago: v.valorPago, dataFinalizacao: v.dataFinalizacao, dataAguardando: v.dataAguardando };
+  const snapshot = { status: v.status, valorPago: v.valorPago, dataFinalizacao: v.dataFinalizacao };
   v.status = sel.value;
-
-  // O prazo de entrega só começa a contar quando o pedido ENTRA em "aguardando"
-  // (ex: saindo de "aguardando-info" depois que o cliente manda os dados).
-  // Grava a data só na transição — não sobrescreve se já estava aguardando antes.
-  if (v.status === 'aguardando' && statusAnterior !== 'aguardando') {
-    v.dataAguardando = today();
-  }
 
   // Ao marcar como Enviado: se já pagou tudo, finaliza automaticamente
   if (v.status === 'enviado') {
@@ -2566,7 +2548,6 @@ function quickStatus(id, sel) {
       v.status = snapshot.status;
       v.valorPago = snapshot.valorPago;
       v.dataFinalizacao = snapshot.dataFinalizacao;
-      v.dataAguardando = snapshot.dataAguardando;
     },
     remoteUndo: () => saveVendaRemote(v),
   });
@@ -3601,17 +3582,6 @@ function saveVenda(forcarSalvar=false) {
     ? (existing?.dataFinalizacao || today())
     : null;
 
-  // O prazo de entrega só começa a contar quando o pedido ENTRA em "aguardando".
-  // Numa venda NOVA já lançada como "aguardando", isso significa a data do próprio
-  // pedido (o campo Data escolhido) — não o dia de hoje, que criaria um prazo
-  // artificialmente adiado se o pedido for lançado com data retroativa (ex: ontem).
-  // Numa venda EXISTENTE que está de fato mudando de status agora, aí sim vale hoje.
-  const statusAnteriorSalvo = existing?.status;
-  let dataAguardando = existing?.dataAguardando || null;
-  if (statusFinal === 'aguardando' && statusAnteriorSalvo !== 'aguardando') {
-    dataAguardando = existing ? today() : document.getElementById('vData').value;
-  }
-
   const v = {
     id: vendaEditId || Date.now().toString(), status: statusFinal, data: document.getElementById('vData').value,
     contato: document.getElementById('vContato').value.trim(), fonte: document.getElementById('vFonte').value,
@@ -3623,7 +3593,6 @@ function saveVenda(forcarSalvar=false) {
     conjuntoOrigem: document.querySelector('input[name="vConjunto"]:checked')?.value || null,
     numContatos: document.getElementById('vNumContatos').value ? parseInt(document.getElementById('vNumContatos').value) : null,
     ...(dataFinalizacao ? { dataFinalizacao } : {}),
-    ...(dataAguardando ? { dataAguardando } : {}),
   };
   if (!v.contato) { showToast('Preencha o contato','error'); return; }
   if (!v.data) { showToast('Preencha a data','error'); return; }
