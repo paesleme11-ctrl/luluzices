@@ -76,7 +76,8 @@
   body.dark .sidebar { background: #0d0c10; }
   .btn-theme { font-size:16px; padding:7px 10px; line-height:1; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--ink); min-height: 100vh; display: flex; transition: background 0.25s, color 0.25s; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--ink); min-height: 100vh; display: flex; transition: background 0.25s, color 0.25s; overflow-x: hidden; }
+  canvas { max-width: 100% !important; }
   body, body * { transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
 
   /* SIDEBAR */
@@ -93,7 +94,7 @@
   .month-badge { background:rgba(232,84,106,0.2); color:var(--rose); font-size:12px; font-weight:600; padding:6px 12px; border-radius:20px; text-align:center; }
 
   /* MAIN */
-  .main { margin-left:230px; flex:1; min-height:100vh; display:flex; flex-direction:column; }
+  .main { margin-left:230px; flex:1; min-width:0; min-height:100vh; display:flex; flex-direction:column; overflow-x:hidden; }
   .topbar { background:#fff; border-bottom:1px solid var(--border); padding:18px 32px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; }
   .topbar-left { display:flex; align-items:center; gap:10px; min-width:0; }
   .btn-menu-mobile { display:none; }
@@ -125,8 +126,11 @@
   .badge-neutral { background:var(--amber-light); color:var(--amber); }
 
   .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px; }
+  .grid-2 > * { min-width: 0; }
   .grid-3 { display:grid; grid-template-columns:2fr 1fr; gap:20px; margin-bottom:20px; }
+  .grid-3 > * { min-width: 0; }
   .grid-charts-tres { display:grid; grid-template-columns:2fr 1fr 1fr; gap:20px; margin-bottom:20px; }
+  .grid-charts-tres > * { min-width: 0; }
   .meta-auto-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 
   .card { background:#fff; border-radius:var(--radius); border:1px solid var(--border); overflow:hidden; }
@@ -1186,7 +1190,10 @@
           </div>
         </div>
         <div class="form-group"><label>Sinal Pago (R$)</label>
-          <input type="number" id="vSinal" step="0.01" min="0" placeholder="0,00" oninput="onSinalManualEdit()">
+          <div style="display:flex;gap:6px;">
+            <input type="number" id="vSinal" step="0.01" min="0" placeholder="0,00" oninput="onSinalManualEdit()" style="flex:1;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="marcarPagamentoCompleto()" title="Preenche sinal e valor pago com o valor total do produto" style="white-space:nowrap;">💰 PG Completo</button>
+          </div>
         </div>
       </div>
       <div class="form-row cols-2">
@@ -3525,6 +3532,18 @@ function autoSinal() {
 function onSinalManualEdit() {
   _sinalAutoPreenchido = false;
   autoValorPago();
+}
+
+/** Botão "PG Completo" — preenche Sinal e Valor Pago com o valor total do
+ * produto de uma vez, para quando o cliente já pagou tudo de uma vez (sem
+ * precisar digitar o mesmo valor duas vezes em campos separados). */
+function marcarPagamentoCompleto() {
+  const valorProd = parseFloat(document.getElementById('vValorProd').value) || 0;
+  if (valorProd <= 0) { showToast('Preencha o Valor do Produto primeiro', 'error'); return; }
+  document.getElementById('vSinal').value = valorProd.toFixed(2);
+  document.getElementById('vValorPago').value = valorProd.toFixed(2);
+  _sinalAutoPreenchido = false;
+  showToast('Pagamento completo preenchido ✓', 'success');
 }
 
 // Reseta o controle automático ao abrir o modal (nova venda ou edição)
