@@ -2509,6 +2509,7 @@ const PER_PAGE = 20;
 
 const STATUS_OPTS = [
   {v:'finalizado',l:'✅ Finalizado'},
+  {v:'aguardando-finalizacao',l:'📦 Ag. Finalização'},
   {v:'enviado',l:'📨 Enviado'},
   {v:'producao',l:'⚙️ Produção'},
   {v:'aguardando',l:'⏳ Aguardando'},
@@ -2532,15 +2533,17 @@ function quickStatus(id, sel) {
   const snapshot = { status: v.status, valorPago: v.valorPago, dataFinalizacao: v.dataFinalizacao };
   v.status = sel.value;
 
-  // Ao marcar como Enviado: se já pagou tudo, finaliza automaticamente
+  // Ao marcar como Enviado: se já pagou tudo, NÃO finaliza mais sozinho — vai
+  // para "Aguardando Finalização", um passo de confirmação manual. Isso evita
+  // que pedidos marcados como "Enviado" por engano (sem terem saído de verdade)
+  // fiquem esquecidos como finalizados sem nunca terem sido entregues.
   if (v.status === 'enviado') {
     const pago = parseFloat(v.valorPago) || 0;
     const prod = parseFloat(v.valorProd) || 0;
     if (prod > 0 && pago >= prod) {
-      v.status = 'finalizado';
-      if (!v.dataFinalizacao) v.dataFinalizacao = today();
-      sel.value = 'finalizado';
-      showToast('Pago integral — finalizado automaticamente ✓', 'success');
+      v.status = 'aguardando-finalizacao';
+      sel.value = 'aguardando-finalizacao';
+      showToast('Pago integral — aguardando confirmação de entrega', 'success');
     }
   }
 
@@ -3587,15 +3590,16 @@ function saveVenda(forcarSalvar=false) {
   const status = document.getElementById('vStatus').value;
   const valorProd = parseFloat(document.getElementById('vValorProd').value)||0;
   const valorPagoInput = parseFloat(document.getElementById('vValorPago').value)||0;
-  const valorPago = status === 'finalizado' ? (valorPagoInput > 0 ? valorPagoInput : valorProd) : valorPagoInput;
+  const valorPago = (status === 'finalizado' || status === 'aguardando-finalizacao') ? (valorPagoInput > 0 ? valorPagoInput : valorProd) : valorPagoInput;
 
   // Preserva dataFinalizacao existente ao editar
   const existing = vendaEditId ? vendas.find(x => x.id === vendaEditId) : null;
-  // Auto-finalizar: se enviado e pagamento total, muda para finalizado
+  // Se enviado e pagamento total: NÃO finaliza sozinho — vai para "Aguardando
+  // Finalização" até confirmação manual de que a entrega foi feita de verdade.
   let statusFinal = status;
   if (status === 'enviado') {
     const pago = parseFloat(document.getElementById('vValorPago').value) || 0;
-    if (valorProd > 0 && pago >= valorProd) { statusFinal = 'finalizado'; }
+    if (valorProd > 0 && pago >= valorProd) { statusFinal = 'aguardando-finalizacao'; }
   }
   const dataFinalizacao = statusFinal === 'finalizado'
     ? (existing?.dataFinalizacao || today())
@@ -4448,6 +4452,14 @@ function getEnviadosPgPendente() {
   ).sort((a,b) => a.data < b.data ? -1 : 1);
 }
 
+/** Pedidos marcados como Enviado + totalmente pagos, aguardando confirmação
+ * manual de que a entrega foi feita de verdade — evita que fiquem esquecidos
+ * como "finalizados" sem nunca terem saído. */
+function getAguardandoFinalizacao() {
+  return vendas.filter(v => statusClass(v.status) === 'aguardando-finalizacao')
+    .sort((a,b) => a.data < b.data ? -1 : 1);
+}
+
 function getPendentesFluxo() {
   const hoje = today();
   return fluxo.filter(f => f.tipo === 'saida' && f.status === 'agendado' && f.data <= hoje);
@@ -4653,9 +4665,10 @@ function renderTarefas() {
 
   // PG Pendente automático = enviados há 1+ dia sem finalizar
   const pgPendenteLista = getEnviadosPgPendente();
+  const aguardandoFinalLista = getAguardandoFinalizacao();
   const aguardandoLista = vendasPendentes; // só aguardando agora
 
-  const totalGeral = pgPendenteLista.length + aguardandoLista.length + fluxoLista.length + producaoLista.length + personalizadosLista.length;
+  const totalGeral = pgPendenteLista.length + aguardandoFinalLista.length + aguardandoLista.length + fluxoLista.length + producaoLista.length + personalizadosLista.length;
   document.getElementById('tarefasCount').textContent = totalGeral;
 
   let htmlBackup = '';
@@ -4879,6 +4892,26 @@ function renderTarefas() {
     pgPendenteLista.forEach(v => { html += cardVenda(v, 'pagamentos', true); });
   }
 
+  // ---- 4b. AGUARDANDO FINALIZAÇÃO (enviado + pago, aguardando confirmação de entrega) ----
+  if (mostrar('pagamentos') && aguardandoFinalLista.length > 0) {
+    html += `<div class="tarefa-section-title">📦 Aguardando Finalização</div>`;
+    aguardandoFinalLista.forEach(v => {
+      html += `
+        <div class="tarefa-card">
+          <div class="tarefa-dias-badge" style="background:#e0f0ff; color:#0369a1; border:1px solid #bae0ff;">
+            <div class="tarefa-dias-num">📦</div>
+            <div class="tarefa-dias-label" style="font-size:7px;">PAGO</div>
+          </div>
+          <div class="tarefa-info">
+            <div class="tarefa-contato">${v.contato || '—'}</div>
+            <div class="tarefa-produto">${v.produto || '—'}</div>
+            <div class="tarefa-meta">${BRL(v.valorPago)} pago · pedido de ${v.data ? v.data.split('-').reverse().join('/') : '—'}</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="confirmarEntregaFinal('${v.id}')">✓ Confirmar Entrega</button>
+        </div>`;
+    });
+  }
+
   // ---- 5. CONTAS AGENDADAS ----
   if (mostrar('agendadas') && fluxoLista.length > 0) {
     html += `<div class="tarefa-section-title">📅 Contas Agendadas</div>`;
@@ -4920,6 +4953,26 @@ function renderTarefas() {
 function quickStatusTarefa(id, sel) {
   quickStatus(id, sel);
   setTimeout(() => renderPage(currentPage), 100);
+}
+
+/** Confirma que um pedido "Aguardando Finalização" foi de fato entregue,
+ * completando o passo manual que evita finalizar pedidos esquecidos. */
+function confirmarEntregaFinal(id) {
+  const v = vendas.find(x => x.id === id);
+  if (!v) return;
+  if (!confirm(`Confirmar que o pedido de "${v.contato || '—'}" foi entregue?`)) return;
+  const snapshot = { status: v.status, dataFinalizacao: v.dataFinalizacao };
+  v.status = 'finalizado';
+  if (!v.dataFinalizacao) v.dataFinalizacao = today();
+  pushUndo({
+    label: 'confirmação de entrega',
+    undo: () => { v.status = snapshot.status; v.dataFinalizacao = snapshot.dataFinalizacao; },
+    remoteUndo: () => saveVendaRemote(v),
+  });
+  save(); saveVendaRemote(v);
+  updateTarefasBadge();
+  showToast('Entrega confirmada — pedido finalizado ✓ (Ctrl+Z p/ desfazer)', 'success');
+  renderPage(currentPage);
 }
 
 
